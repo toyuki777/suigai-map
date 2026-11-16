@@ -367,16 +367,23 @@
   .dock{ position:fixed; left:50%; bottom:calc(10px + env(safe-area-inset-bottom)); transform:translateX(-50%); width:min(50rem, calc(100% - 16px - env(safe-area-inset-left) - env(safe-area-inset-right))); z-index:1500;
          color:#fff; background:rgba(8,26,40,.94); border:1px solid rgba(255,255,255,.14); border-radius:20px; overflow:hidden;
          box-shadow:0 20px 44px -16px rgba(4,18,30,.75); -webkit-backdrop-filter:blur(14px) saturate(140%); backdrop-filter:blur(14px) saturate(140%); }
-  .dock-prog{ height:3px; background:rgba(255,255,255,.1); }
-  .dock-prog i{ display:block; height:100%; width:0; background:linear-gradient(90deg,#4cc9f0,#ffd166 60%,#ff7a6b); }
-  .dock-in{ display:grid; grid-template-columns:48px minmax(0,1fr) auto; grid-template-areas:"play cap min" "play sl min"; gap:2px 14px; align-items:center; padding:10px 12px 12px; }
-  .play{ grid-area:play; width:48px; height:48px; border-radius:50%; border:0; cursor:pointer; color:#fff; display:grid; place-items:center;
-         background:#2a7de1; box-shadow:0 6px 14px -6px rgba(0,0,0,.7); transition:transform .15s, background-color .2s; }
-  .play:hover{ background:#3b8bec; }
-  .play:active{ transform:scale(.94); }
+  /* 進み具合：段階ごとに1本。いまの段階まで塗られる */
+  .dock-prog{ display:flex; gap:5px; margin:10px 14px 0; }
+  .dock-prog span{ flex:1; height:5px; border-radius:99px; background:rgba(255,255,255,.22); overflow:hidden; }
+  .dock-prog i{ display:block; height:100%; width:0; background:#bfeaf3; }
+  .dock-in{ display:grid; grid-template-columns:auto minmax(0,1fr) auto; grid-template-areas:"play cap min" "play sl min"; gap:2px 14px; align-items:center; padding:8px 12px 12px; }
+  .play{ grid-area:play; min-width:76px; min-height:52px; padding:6px 8px; border-radius:14px; border:0; cursor:pointer; color:#fff;
+         display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+         background:var(--base); font-size:var(--t-sm); font-weight:800; line-height:1.3; white-space:nowrap;
+         box-shadow:0 6px 14px -6px rgba(0,0,0,.7); transition:transform .15s, background-color .2s; }
+  .play:hover{ background:#2a72e6; }
+  .play:active{ transform:scale(.96); }
   .play svg{ width:22px; height:22px; fill:currentColor; }
   .dock-cap{ grid-area:cap; min-width:0; margin:0; font-size:var(--t-sm); line-height:1.5; color:#e3eef3; }
   .dock-cap b{ color:#bfeaf3; margin-right:8px; font-variant-numeric:tabular-nums; }
+  /* いまの段階（例：段階2／5） */
+  .dock-cap .stage{ display:inline-block; margin-right:8px; padding:0 8px; border-radius:6px; background:#bfeaf3; color:#0a2233; }
+  .dock-cap .stage:empty{ display:none; }
   .dock-sl{ grid-area:sl; display:grid; grid-template-columns:1fr 1fr; gap:0 20px; min-width:0; }
   .dock-sl label{ display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; font-size:var(--t-sm); font-weight:700; color:#e3eef3; }
   .dock-sl input[type=range]{ --track:rgba(255,255,255,.28); }
@@ -393,9 +400,16 @@
   .dock.min .dock-min{ align-self:center; }
   @media (max-width:600px){
     .dock-in{ grid-template-areas:"cap cap min" "play sl sl"; gap:6px 12px; }
+    .play{ align-self:stretch; }
+    .dock.min .play{ align-self:center; }
     .dock-cap{ min-height:4.5em; }
     .dock-cap b{ display:block; margin:0; }
     .dock-sl{ grid-template-columns:1fr; gap:0; }
+  }
+  @media (max-width:359px){
+    .play{ min-width:60px; padding:6px 4px; }
+    .dock-sl label{ gap:6px; }
+    .dock-sl output{ min-width:4em; }
   }
 
   /* ===== 画面の流れ（body の data-step）：area＝エリア選択 → locate＝今いる場所 → main＝本編 ===== */
@@ -449,7 +463,7 @@
       <details class="howto" id="howto">
         <summary>使い方と雨量の目安</summary>
         <p>エリアを選び、地図に今いる場所のピンを立てると、周辺のアンダーパスが表示されます。水深を変えると各地点の通行可否が変わり、地点をタップすると現地の写真と水害時のシミュレーション画像が見られます。水害時画像は、3段階（15cm程度／30cm程度／深い冠水）の画像を、想定水深に合わせて重ねながら切り替えます。地図上の🏢ピンは事業所です。</p>
-        <p>画面下のバーの再生ボタンを押すと、大雨シナリオ（研修用の想定）が自動で流れ、雨量・水深・地図・写真・3D表示が連動して変わります。雨量と水深は、画面下のバーのスライダーでいつでも変えられます。</p>
+        <p>画面下のバーの再生ボタンを押すと、大雨シナリオ（研修用の想定）が次の段階まで進んで止まり、雨量・水深・地図・写真・3D表示が連動して変わります。もう一度押すと、その次の段階へ進みます。雨量と水深は、画面下のバーのスライダーでいつでも変えられます。</p>
         <p>💧 雨量の目安：時間雨量50mm級の非常に激しい雨が短時間に集中すると、アンダーパスは数十分で冠水し得ます（30mm/h級でも冠水が始まることがあります）。通行規制の雨量基準は箇所ごとに定められています。</p>
       </details>
     </div>
@@ -654,6 +668,7 @@
       <li>3D表示（アンダーパスの模式図）は、一般的なアンダーパスの形と軽自動車を想定して作った模式図で、各地点の実際の形状・勾配・排水設備を再現したものではありません。壁の水位ラインと表示板は、選んだ地点の想定値（注意／通行止め／冠水）に連動します。地点を選んでいないときの表示板は、京都府の通行止め目安（冠水深15cm）で切り替わります。3D表示にはThree.js（MITライセンス）を使用し、表示にはインターネット接続が必要です。</li>
       <li>3D表示の「車への影響」の説明は、国土交通省の報道発表「水深が床面を超えたら、もう危険！－自動車が冠水した道路を走行する場合に発生する不具合について－」（令和元年11月27日）の別紙と、内閣府（防災担当）・警察庁・消防庁・国土交通省・気象庁のチラシ「レベル５大雨特別警報が発表されたときの車運転の注意点」に基づいています。モデル車の寸法（床面・ドア下端 約30cm、タイヤ直径 約56cm）は軽自動車を想定した研修用の目安です。</li>
       <li>大雨シナリオの再生は、雨量と水深の時間変化を研修用に想定したもので（60分間の想定を約30秒で再生）、実際の冠水の速さは雨の降り方・地形・排水能力によって変わります。</li>
+      <li>大雨シナリオは、再生ボタンを押すたびに次の段階で止まります。段階は5つで、①雨量15mm/h、②雨量30mm/h、③雨量50mm/h・水深15cm、④水深30cm、⑤水深60cm です。区切りは、雨量シミュレーションの区切り（15・30・50mm/h）、京都府の通行止め目安（冠水深15cm）、水害時画像の段階（15cm程度／30cm程度／深い冠水）に合わせた研修用の想定です。国や自治体が発表する「警戒レベル」とは対応していません。</li>
       <li>水害時の画像は、3段階（水深15cm程度／30cm程度／深い冠水）の画像を、想定水深に合わせて重ねながら切り替えて表示します。段階の途中の水深では前後2枚が重なった表示になり、その水深の様子を正確に描いたものではありません（研修用の演出です）。</li>
       <li>「今いる場所」のピンは、地図のタップ、事業所ピンのタップ、端末の現在地（利用を許可した場合のみ）、住所検索のいずれかで立てます。ピンの位置はこのページを開いている間だけ端末の中で使い、保存や外部への送信はしません（住所検索で入力した住所は、国土地理院の住所検索APIに送られます）。地点一覧の「直線で約◯km」は、ピンから各地点までの直線距離の目安で、道のりの距離ではありません。</li>
     </ul>
@@ -662,12 +677,13 @@
 </main>
 
 <div class="dock" id="dock">
-  <div class="dock-prog"><i id="scnBar"></i></div>
+  <div class="dock-prog" id="scnProg" aria-hidden="true"></div>
   <div class="dock-in">
     <button class="play" id="scnPlay" type="button" aria-label="大雨シナリオを再生">
       <svg id="icPlay" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+      <span id="scnBtn">再生</span>
     </button>
-    <p class="dock-cap"><b id="scnClock">大雨シナリオ</b><span id="scnCap" aria-live="polite">再生すると、降り始めから60分間の想定を約30秒で流します。</span></p>
+    <p class="dock-cap"><b><span class="stage" id="scnStage"></span><span id="scnClock">大雨シナリオ</span></b><span id="scnCap" aria-live="polite">再生を押すたびに、次の段階まで進んで止まります（全5段階）。</span></p>
     <p class="dock-pill"><b>大雨シナリオ</b><span id="dockPill">雨量 0mm/h ・ 水深 0cm</span></p>
     <div class="dock-sl">
       <label>雨量<input type="range" id="dockRain" min="0" max="60" step="1" value="0" aria-label="時間雨量（mm/h）"><output><span id="dockRainVal">0</span> mm/h</output></label>
@@ -1471,9 +1487,10 @@ function clearSites(){
 function resetSim(){
   SCN.playing = false; SCN.t = 0;
   applyRain(0, true); applyDepth(0, true);
-  scnIcon(); $("scnBar").style.width = "0%";
+  scnIcon(); scnProgress(0);
   $("scnClock").textContent = "大雨シナリオ";
-  $("scnCap").textContent = "再生すると、降り始めから60分間の想定を約30秒で流します。";
+  $("scnStage").textContent = "";
+  $("scnCap").textContent = SCN_INTRO;
 }
 function goArea(){
   clearTimeout(clickTimer); placing = false;
@@ -1549,8 +1566,27 @@ $("skipBtn").addEventListener("click", function(){ if(placing) return; clearMe()
 
 /* ===================== 大雨シナリオ再生（時間軸アニメーション） ===================== */
 /* 降り始めからの経過（分）ごとに、雨量と水深のキーフレームを置き、その間を補間して再生する */
-var SCN = { dur: 30000, t: 0, playing: false, last: 0, raf: 0 };
-var KF = { m:[0, 10, 20, 30, 45, 60], rain:[0, 15, 30, 50, 50, 50], depth:[0, 0, 5, 15, 35, 55] };
+var SCN = { dur: 30000, t: 0, playing: false, last: 0, raf: 0, goal: 0, goalIdx: -1 };
+var KF = { m:[0, 10, 20, 30, 40, 60], rain:[0, 15, 30, 50, 50, 50], depth:[0, 0, 5, 15, 30, 60] };
+/* 段階：再生ボタンを押すたびに、次の段階（降り始めからの分）まで進んで止まる。
+   ①雨量15mm/h ②雨量30mm/h ③雨量50mm/h・水深15cm ④水深30cm ⑤水深60cm。
+   ③④⑤は、水害時画像の3段階（15cm程度／30cm程度／深い冠水）がちょうど表示される水深にしてある */
+var STOPS = [10, 20, 30, 40, 60];
+var SCN_INTRO = "再生を押すたびに、次の段階まで進んで止まります（全" + STOPS.length + "段階）。";
+/* 進み具合の目盛り（段階ごとに1本）。m は降り始めからの分 */
+var progFill = [];
+function scnProgress(m){
+  for(var i=0;i<progFill.length;i++){
+    var a = i ? STOPS[i-1] : 0, u = (m - a) / (STOPS[i] - a);
+    progFill[i].style.width = (Math.max(0, Math.min(1, u)) * 100).toFixed(1) + "%";
+  }
+}
+function nextStop(){
+  for(var i=0;i<STOPS.length;i++){ if(STOPS[i]/60 > SCN.t + 1e-6) return i; }
+  return -1;
+}
+/* 止まった段階で出す説明。最後の段階は、討議につなぐ「深い冠水」の説明を出す */
+function stopCaption(i){ return scnCaption(i === STOPS.length-1 ? STOPS[i] - 1 : STOPS[i]); }
 function kfValue(m, arr){
   for(var i=1;i<KF.m.length;i++){
     if(m <= KF.m[i]){ var u = (m-KF.m[i-1])/(KF.m[i]-KF.m[i-1]); return arr[i-1] + (arr[i]-arr[i-1])*u; }
@@ -1569,23 +1605,35 @@ function scnCaption(m){
 }
 var IC_PLAY = '<path d="M8 5v14l11-7z"/>', IC_PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>', IC_REPLAY = '<path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z"/>';
 function scnIcon(){
-  $("icPlay").innerHTML = SCN.playing ? IC_PAUSE : (SCN.t >= 1 ? IC_REPLAY : IC_PLAY);
-  $("scnPlay").setAttribute("aria-label", SCN.playing ? "シナリオを一時停止" : "大雨シナリオを再生");
+  var done = SCN.t >= 1, n = nextStop();
+  $("icPlay").innerHTML = SCN.playing ? IC_PAUSE : (done ? IC_REPLAY : IC_PLAY);
+  $("scnBtn").textContent = SCN.playing ? "止める" : done ? "最初から" : SCN.t > 0 ? "次へ" : "再生";
+  $("scnPlay").setAttribute("aria-label", SCN.playing ? "シナリオを一時停止" : done ? "大雨シナリオを最初から再生" :
+    "大雨シナリオを再生（段階" + (n + 1) + "まで進んで止まります）");
 }
 function scnRender(){
   var m = SCN.t * 60;
   applyRain(Math.round(kfValue(m, KF.rain)), true);
   applyDepth(Math.round(kfValue(m, KF.depth)), true);
-  $("scnBar").style.width = (SCN.t*100).toFixed(2) + "%";
+  scnProgress(m);
   $("scnClock").textContent = "降り始めから " + Math.round(m) + "分";
   $("scnCap").textContent = scnCaption(m);
+}
+/* 段階に着いた：その段階の番号と説明を出して止まる */
+function scnArrive(){
+  var i = SCN.goalIdx;
+  SCN.t = SCN.goal; SCN.playing = false;
+  scnRender();
+  $("scnStage").textContent = "段階" + (i + 1) + "／" + STOPS.length;
+  $("scnCap").textContent = stopCaption(i);
+  scnIcon();
 }
 function scnTick(ts){
   SCN.raf = 0; if(!SCN.playing) return;
   var dt = Math.min(100, ts - (SCN.last || ts)); SCN.last = ts;
-  SCN.t = Math.min(1, SCN.t + dt/SCN.dur);
+  SCN.t = Math.min(SCN.goal, SCN.t + dt/SCN.dur);
+  if(SCN.t >= SCN.goal - 1e-9){ scnArrive(); return; }
   scnRender();
-  if(SCN.t >= 1){ SCN.playing = false; scnIcon(); return; }
   SCN.raf = requestAnimationFrame(scnTick);
 }
 function scnPlay(){
@@ -1593,13 +1641,20 @@ function scnPlay(){
   /* 「通常時」に固定していても、再生を始めたら写真を水深に連動させる */
   if(photoPinned && photoMode === "before"){ photoPinned = false; if(current) refreshPhoto(); }
   if(SCN.t >= 1) SCN.t = 0;
+  /* 次の段階まで進んで止まる */
+  SCN.goalIdx = nextStop(); SCN.goal = STOPS[SCN.goalIdx] / 60;
+  $("scnStage").textContent = "段階" + (SCN.goalIdx + 1) + "へ";
+  if(REDUCED){ scnArrive(); return; }   /* 動きを減らす設定のときは、途中を見せずに次の段階へ移る */
   SCN.playing = true; SCN.last = 0; scnIcon();
   if(!SCN.raf) SCN.raf = requestAnimationFrame(scnTick);
 }
+/* 再生中に止めたとき、または段階の途中でスライダーを動かしたとき */
 function scnPause(){
-  if(!SCN.playing) return;
-  SCN.playing = false; scnIcon();
-  $("scnCap").textContent = "一時停止中。スライダーで自由に変えられます（再生ボタンで続きから）。";
+  if(SCN.playing){ SCN.playing = false; scnIcon(); }
+  if(SCN.t > 0 && SCN.t < 1){
+    $("scnStage").textContent = "";
+    $("scnCap").textContent = "一時停止中。スライダーで自由に変えられます（再生ボタンで続きから）。";
+  }
 }
 $("scnPlay").addEventListener("click", function(){ if(SCN.playing) scnPause(); else scnPlay(); });
 function setDockMin(min){
@@ -1640,6 +1695,11 @@ markPresets("[data-d]", "data-d", 0); markPresets("[data-r]", "data-r", 0);
 $("rainDesc").textContent = rainDescText(0);
 updateImpact(); updatePill();
 tallyRoads(); updateRoadCounts();
+STOPS.forEach(function(){
+  var seg = document.createElement("span"), fill = document.createElement("i");
+  seg.appendChild(fill); $("scnProg").appendChild(seg); progFill.push(fill);
+});
+scnIcon();
 /* スマホでは、地図と一覧を広く見せるため、下のバーをたたんだ状態から始める */
 setDockMin(!!(window.matchMedia && window.matchMedia("(max-width:600px)").matches));
 /* 「データについて」は、広い画面では開いた状態、スマホではたたんだ状態から始める */
