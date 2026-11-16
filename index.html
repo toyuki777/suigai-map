@@ -20,286 +20,383 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="preconnect" href="https://cyberjapandata.gsi.go.jp" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css'">
 <style>
-  :root{ --ink:#10222c; --ink2:#566873; --ink3:#8a9aa3; --line:#dfe7ec; --bg:#edf2f5; --card:#fff;
-         --ok:#14a06f; --warn:#e2a000; --bad:#de4a44; --hard:#e8720c; --base:#1d63d6;
-         --navy:#0a2233; --aqua:#4cc9f0;
-         --r:18px; --shadow:0 12px 32px -20px rgba(13,40,60,.45), 0 1px 0 rgba(13,40,60,.03);
-         --dockH:112px; }
+  /* ===== 色と文字の大きさ（ここで決めた値を全体で使う） ===== */
+  :root{
+    --ink:#10222c; --ink2:#42525c; --line:#d9e2e8; --edge:#aebdc7; --bg:#edf2f5; --card:#fff; --soft:#edf2f5;
+    /* 状態の色：塗り（ピン・線・ゲージ）／文字用（-ink）／うすい地（-bg） */
+    --ok:#14a06f;   --ok-ink:#0a7450;   --ok-bg:#e3f5ee;
+    --warn:#e2a000; --warn-ink:#7a5d00; --warn-bg:#fdf3d7;
+    --hard:#e8720c; --hard-ink:#8f4500; --hard-bg:#fdeadb;
+    --bad:#de4a44;  --bad-ink:#b3261e;  --bad-bg:#fdeceb;
+    --deep:#a8262b;
+    --base:#1d63d6; --navy:#0a2233; --aqua:#4cc9f0;
+    /* 文字の大きさ：出典 → 補足 → 本文 → 見出し → 大見出し、数値 */
+    --t-xs:.75rem; --t-sm:.875rem; --t-md:1rem; --t-lg:1.125rem; --t-xl:1.375rem; --t-num:1.75rem;
+    --tap:44px; --r:18px; --shadow:0 12px 32px -20px rgba(13,40,60,.45), 0 1px 0 rgba(13,40,60,.03);
+    --dockH:84px;
+  }
   *{ box-sizing:border-box; }
-  html{ -webkit-text-size-adjust:100%; -webkit-tap-highlight-color:rgba(76,201,240,.16); }
+  html{ -webkit-text-size-adjust:100%; -webkit-tap-highlight-color:rgba(29,99,214,.14); }
+  /* 大きい画面（プロジェクターなど）では、文字と枠を一段ずつ大きくする */
+  @media (min-width:1400px){ html{ font-size:112.5%; } }
+  @media (min-width:1800px){ html{ font-size:125%; } }
   body{ margin:0; font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI",Meiryo,sans-serif;
-        background:var(--bg); color:var(--ink); line-height:1.6; -webkit-font-smoothing:antialiased;
-        padding-bottom:calc(var(--dockH) + 22px + env(safe-area-inset-bottom)); }
+        font-size:var(--t-md); background:var(--bg); color:var(--ink); line-height:1.7; -webkit-font-smoothing:antialiased;
+        padding-bottom:calc(var(--dockH) + 26px + env(safe-area-inset-bottom)); }
+  ::selection{ background:rgba(29,99,214,.22); }
   button{ font:inherit; color:inherit; }
+  input{ caret-color:var(--base); }
   button, summary, label, a{ touch-action:manipulation; }
   /* ホーム画面から開いたとき（全画面表示）は、時計・電波表示の裏に内容が重ならないよう帯を敷く */
   html.standalone body::before{ content:""; position:fixed; left:0; right:0; top:0; height:env(safe-area-inset-top); background:#071c2c; z-index:3000; }
-  button:focus-visible, input:focus-visible, summary:focus-visible{ outline:3px solid rgba(29,99,214,.45); outline-offset:2px; }
+  button:focus-visible, input:focus-visible, summary:focus-visible, canvas:focus-visible{ outline:3px solid rgba(29,99,214,.65); outline-offset:2px; }
+  .hero button:focus-visible, .hero summary:focus-visible, .dock button:focus-visible, .dock input:focus-visible{ outline-color:#9fd8ff; }
 
-  /* ===== ヒーロー ===== */
+  /* ===== ボタン（押せる範囲は44px以上） ===== */
+  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:var(--tap); padding:8px 16px; border-radius:12px; border:1.5px solid var(--edge);
+        background:#fff; color:var(--ink); font-size:var(--t-sm); font-weight:700; line-height:1.35; cursor:pointer; text-align:center;
+        transition:background-color .2s, border-color .2s, color .2s; }
+  .btn:hover{ border-color:var(--ink2); }
+  .btn:active{ transform:translateY(1px); }
+  .btn.primary{ background:var(--base); border-color:var(--base); color:#fff; font-size:var(--t-md); }
+  .btn.primary:hover{ background:#174fae; border-color:#174fae; }
+  .btn.link{ color:var(--base); }
+  .btn:disabled{ opacity:.55; cursor:default; }
+  /* 切り替え・絞り込み・目安ボタン：選択中は紺の塗りで統一 */
+  .seg{ display:inline-flex; align-items:center; justify-content:center; min-height:var(--tap); padding:6px 14px; border-radius:999px; border:1.5px solid var(--edge);
+        background:#fff; color:var(--ink); font-size:var(--t-sm); font-weight:700; line-height:1.3; cursor:pointer; transition:background-color .2s, color .2s, border-color .2s; }
+  .seg:hover{ border-color:var(--ink2); }
+  .seg.on{ background:var(--navy); border-color:var(--navy); color:#fff; }
+  .seg:disabled{ opacity:.4; cursor:default; }
+
+  /* ===== 開始画面と見出しバー ===== */
   .hero{ position:relative; color:#fff; overflow:hidden;
-         background:linear-gradient(155deg,#071c2c 0%,#0b3a54 50%,#0f6c7c 100%); }
+         background:linear-gradient(155deg,#071c2c 0%,#0b3a54 52%,#0d5a6a 100%); }
   .hero::before{ content:""; position:absolute; inset:0; pointer-events:none;
-         background:radial-gradient(900px 380px at 88% -12%, rgba(120,220,255,.24), transparent 60%),
-                    radial-gradient(640px 320px at -4% 112%, rgba(40,170,210,.28), transparent 62%); }
-  .hero-in{ position:relative; max-width:1240px; margin:0 auto;
+         background:radial-gradient(900px 380px at 88% -12%, rgba(120,220,255,.2), transparent 60%),
+                    radial-gradient(640px 320px at -4% 112%, rgba(40,170,210,.22), transparent 62%); }
+  .hero-in{ position:relative; max-width:77.5rem; margin:0 auto;
             padding:calc(26px + env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) 56px max(18px, env(safe-area-inset-left)); }
-  .eyebrow{ display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; letter-spacing:.14em; color:#a8e6f2;
-            border:1px solid rgba(168,230,242,.35); border-radius:999px; padding:3px 12px; }
-  .eyebrow i{ width:7px; height:7px; border-radius:50%; background:var(--aqua); box-shadow:0 0 0 0 rgba(76,201,240,.7); animation:beacon 2.2s ease-out infinite; }
-  h1{ font-size:clamp(22px,4.6vw,34px); line-height:1.25; margin:12px 0 8px; font-weight:800; letter-spacing:.01em; }
-  h1 span{ display:inline-block; font-weight:600; opacity:.86; font-size:.62em; margin-left:.35em; }
-  .lead{ font-size:13.5px; color:rgba(255,255,255,.88); max-width:780px; margin:0; line-height:1.85; }
-  .hero-note{ display:inline-block; margin-top:10px; font-size:12px; line-height:1.7; color:#ffe9b8; background:rgba(255,196,60,.12);
-              border:1px solid rgba(255,208,110,.35); border-radius:10px; padding:6px 11px; max-width:780px; }
-  details.howto{ margin-top:10px; font-size:12.5px; color:rgba(255,255,255,.86); max-width:800px; line-height:1.85; }
-  details.howto summary{ cursor:pointer; font-weight:700; color:#bfeaf3; display:inline-flex; align-items:center; gap:6px; padding:4px 0; list-style:none; border-radius:6px; }
-  details.howto summary::-webkit-details-marker{ display:none; }
-  details.howto summary::before{ content:"＋"; display:inline-grid; place-items:center; width:18px; height:18px; border-radius:50%; background:rgba(191,234,243,.18); font-size:11px; }
-  details.howto[open] summary::before{ content:"－"; }
-  details.howto p{ margin:6px 0 0; }
-  .start-q{ font-size:15px; font-weight:800; margin:22px 0 10px; letter-spacing:.06em; color:#bfeaf3; }
-  .area-pick{ display:grid; gap:10px; max-width:680px; }
+  h1{ font-size:clamp(1.625rem,5.6vw,2.375rem); line-height:1.3; margin:0 0 10px; font-weight:800; letter-spacing:.01em; }
+  h1 span{ display:inline-block; font-weight:600; font-size:1rem; margin-left:.35em; color:#d8eef5; }
+  @media (min-width:700px){ h1 span{ font-size:1.375rem; } }
+  .lead{ font-size:var(--t-md); color:#eef6f9; max-width:46rem; margin:0; line-height:1.85; }
+  .hero-note{ margin:12px 0 0; font-size:var(--t-sm); line-height:1.7; color:#ffe9b8; background:rgba(255,196,60,.13);
+              border-radius:10px; padding:8px 12px; max-width:46rem; }
+  .start-q{ font-size:var(--t-lg); font-weight:800; margin:26px 0 10px; color:#fff; }
+  .area-pick{ display:grid; gap:10px; max-width:46rem; }
   .area-pick button{ display:flex; align-items:center; justify-content:space-between; gap:12px; text-align:left; cursor:pointer; color:#fff;
-        border:1px solid rgba(255,255,255,.24); background:rgba(255,255,255,.1); border-radius:16px; padding:15px 18px;
-        -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); transition:background .2s, border-color .2s, transform .15s; }
-  .area-pick button b{ display:block; font-size:23px; font-weight:800; letter-spacing:.06em; line-height:1.3; }
-  .area-pick button small{ display:block; font-size:12px; font-weight:600; opacity:.82; }
-  .area-pick button::after{ content:"›"; font-size:28px; line-height:1; opacity:.7; }
-  .area-pick button:hover{ background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.45); }
+        border:1.5px solid rgba(255,255,255,.34); background:rgba(255,255,255,.1); border-radius:16px; padding:15px 18px;
+        transition:background-color .2s, border-color .2s, transform .15s; }
+  .area-pick button b{ display:block; font-size:1.625rem; font-weight:800; letter-spacing:.06em; line-height:1.3; }
+  .area-pick button small{ display:block; font-size:var(--t-sm); font-weight:600; color:#fff; }
+  .area-pick button::after{ content:""; flex:none; width:11px; height:11px; margin-right:4px; border-top:2.5px solid #fff; border-right:2.5px solid #fff; transform:rotate(45deg); opacity:.8; }
+  .area-pick button:hover{ background:rgba(255,255,255,.2); border-color:rgba(255,255,255,.6); }
   .area-pick button:active{ transform:scale(.98); }
-  @media (min-width:700px){ .area-pick{ grid-template-columns:repeat(3,1fr); } .area-pick button{ padding:20px 18px; } }
+  @media (min-width:700px){ .area-pick{ grid-template-columns:repeat(3,1fr); } .area-pick button{ padding:22px 20px; } }
   .topbar{ display:flex; align-items:center; gap:8px 10px; flex-wrap:wrap; }
-  .tb-title{ font-size:16px; font-weight:800; letter-spacing:.02em; }
-  .tb-title small{ font-size:.74em; font-weight:600; opacity:.85; }
-  .tb-btn{ margin-left:auto; display:inline-flex; align-items:center; gap:8px; border:0; background:#fff; color:#0b3a54; border-radius:999px; padding:4px 5px 4px 12px; font-size:12px; font-weight:800; cursor:pointer; }
-  .tb-btn i{ font-style:normal; font-size:11px; font-weight:700; color:#fff; background:#0b3a54; border-radius:999px; padding:3px 9px; }
-  .a2hs{ display:none; align-items:center; gap:10px; margin-top:12px; max-width:600px; font-size:12px; line-height:1.6; color:#eaf8fc;
-         background:rgba(76,201,240,.14); border:1px solid rgba(120,220,255,.35); border-radius:12px; padding:8px 8px 8px 12px; }
+  .tb-title{ margin:0; font-size:var(--t-lg); font-weight:800; letter-spacing:.02em; line-height:1.25; }
+  .tb-title small{ display:block; font-size:var(--t-xs); font-weight:600; color:#d8eef5; }
+  .tb-btn{ margin-left:auto; display:inline-flex; align-items:center; gap:8px; min-height:var(--tap); border:0; background:#fff; color:#0b3a54; border-radius:999px; padding:5px 6px 5px 14px;
+           font-size:var(--t-sm); font-weight:800; cursor:pointer; }
+  .tb-btn i{ font-style:normal; font-size:var(--t-sm); font-weight:700; color:#fff; background:#0b3a54; border-radius:999px; padding:5px 12px; }
+  .a2hs{ display:none; align-items:center; gap:10px; margin-top:14px; max-width:46rem; font-size:var(--t-sm); line-height:1.6; color:#fff;
+         background:rgba(76,201,240,.16); border-radius:12px; padding:8px 8px 8px 12px; }
   html.a2hs-on .a2hs{ display:flex; }
   .a2hs span{ flex:1; min-width:0; }
-  .a2hs button{ flex:none; width:30px; height:30px; border-radius:50%; border:0; background:rgba(255,255,255,.14); color:#fff; font-size:15px; line-height:1; cursor:pointer; }
+  .a2hs button{ flex:none; width:var(--tap); height:var(--tap); border-radius:50%; border:0; background:rgba(255,255,255,.16); color:#fff; font-size:var(--t-lg); line-height:1; cursor:pointer; }
   .hero-wave{ position:absolute; left:0; bottom:-1px; width:200%; height:34px; display:block; pointer-events:none; }
-  .hero-wave.w1{ animation:waveX 15s linear infinite; opacity:.5; }
-  .hero-wave.w2{ animation:waveX 9s linear infinite reverse; }
+  .hero-wave.w1{ opacity:.5; }
+  /* 波が動くのは開始画面だけ。地図を見る画面では止める */
+  body[data-step="area"] .hero-wave.w1{ animation:waveX 15s linear infinite; }
+  body[data-step="area"] .hero-wave.w2{ animation:waveX 9s linear infinite reverse; }
   @keyframes waveX{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
-  @keyframes beacon{ 0%{ box-shadow:0 0 0 0 rgba(76,201,240,.7); } 100%{ box-shadow:0 0 0 9px rgba(76,201,240,0); } }
 
-  /* ===== レイアウト ===== */
-  .wrap{ padding:4px max(12px, env(safe-area-inset-right)) 20px max(12px, env(safe-area-inset-left)); max-width:1240px; margin:0 auto; }
+  /* ===== 折りたたみ（使い方・データについて） ===== */
+  details.howto summary, .fold > summary{ cursor:pointer; list-style:none; display:flex; align-items:center; gap:10px; min-height:var(--tap); border-radius:8px; }
+  details.howto summary::-webkit-details-marker, .fold > summary::-webkit-details-marker{ display:none; }
+  details.howto summary::after, .fold > summary::after{ content:""; flex:none; width:9px; height:9px; margin:0 6px 4px auto; border-right:2.5px solid currentColor; border-bottom:2.5px solid currentColor; transform:rotate(45deg); transition:transform .2s; }
+  details.howto[open] summary::after, .fold[open] > summary::after{ transform:rotate(-135deg); margin-bottom:-4px; }
+  details.howto{ font-size:var(--t-sm); line-height:1.85; }
+  details.howto summary{ font-size:var(--t-md); font-weight:800; }
+  details.howto p{ margin:8px 0 0; }
+  .hero details.howto{ margin-top:14px; max-width:46rem; color:#eef6f9; }
+  .hero details.howto summary{ display:inline-flex; color:#fff; }
+  .hero details.howto summary::after{ margin-left:4px; }
+  .below details.howto{ background:var(--card); border:1px solid rgba(16,40,60,.07); border-radius:var(--r); padding:6px 16px; box-shadow:var(--shadow); color:var(--ink2); }
+  .below details.howto summary{ color:var(--ink); }
+  .below details.howto[open]{ padding-bottom:16px; }
+  .fold{ padding:6px 16px; }
+  .fold[open]{ padding-bottom:16px; }
+  .fold > summary .lbl{ margin:0; }
+
+  /* ===== レイアウト：スマホは 地図 → 地点 → 雨量・水深 → 討議 → 3D の縦1列 ===== */
+  .wrap{ display:block; padding:6px max(12px, env(safe-area-inset-right)) 20px max(12px, env(safe-area-inset-left)); max-width:77.5rem; margin:0 auto; }
   .layout{ display:flex; flex-direction:column; gap:14px; }
-  .colL, .colR{ display:contents; }
-  .stack{ display:flex; flex-direction:column; gap:14px; min-width:0; }
-  .c-map{ order:1; } .c-side{ order:2; } .c-ctrl{ order:3; } .c-q{ order:4; } .c-3d{ order:5; }
-  @media (min-width:1080px){
-    .layout{ display:grid; grid-template-columns:minmax(0,1.22fr) minmax(0,1fr); gap:16px; align-items:start; }
-    .colL{ display:flex; flex-direction:column; gap:16px; grid-column:1; grid-row:1; min-width:0; }
-    .colR{ display:flex; flex-direction:column; gap:16px; grid-column:2; grid-row:1; min-width:0; }
+  .stack, .colR, .colL2{ display:flex; flex-direction:column; gap:14px; min-width:0; }
+  @media (min-width:900px){
+    .layout{ display:grid; grid-template-columns:minmax(0,1.22fr) minmax(0,1fr); grid-template-rows:auto 1fr; gap:16px; align-items:start; }
+    .c-map{ grid-column:1; grid-row:1; }
+    .colR{ grid-column:2; grid-row:1 / span 2; gap:16px; }
+    .colL2{ grid-column:1; grid-row:2; gap:16px; }
     .stack{ gap:16px; }
-    #siteList{ max-height:470px; overflow:auto; overscroll-behavior:contain; }
+    #siteList{ max-height:29rem; overflow:auto; overscroll-behavior:contain; }
   }
-  .card{ background:var(--card); border:1px solid rgba(16,40,60,.07); border-radius:var(--r); padding:14px 16px; box-shadow:var(--shadow); }
+  .card{ background:var(--card); border:1px solid rgba(16,40,60,.07); border-radius:var(--r); padding:16px; box-shadow:var(--shadow); }
   .below{ display:grid; gap:14px; margin-top:14px; }
-  @media (min-width:1080px){ .below{ margin-top:16px; } .notes{ columns:2; column-gap:30px; } .notes li{ break-inside:avoid; } }
-  .rise{ animation:rise .6s cubic-bezier(.2,.7,.2,1) both; }
-  @keyframes rise{ from{ transform:translateY(18px); } to{ transform:none; } }
-  .lbl{ display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:800; color:var(--ink2); margin-bottom:10px; letter-spacing:.04em; }
-  .lbl small{ font-size:11.5px; font-weight:600; color:var(--ink3); letter-spacing:0; }
-  .lbl::before{ content:""; width:4px; height:14px; border-radius:2px; background:linear-gradient(var(--aqua),var(--base)); }
-  .sub{ font-size:12px; color:var(--ink2); line-height:1.7; }
+  @media (min-width:900px){ .below{ margin-top:16px; gap:16px; } .notes{ columns:2; column-gap:32px; } .notes li{ break-inside:avoid; } }
+  .lbl{ display:block; margin:0 0 10px; font-size:var(--t-md); font-weight:800; color:var(--ink); line-height:1.5; }
+  .lbl small{ display:inline-block; margin-left:10px; font-size:var(--t-sm); font-weight:600; color:var(--ink2); }
+  .sub{ margin:0; font-size:var(--t-sm); color:var(--ink2); line-height:1.75; }
 
   /* ===== スライダー ===== */
   .slider-row{ display:flex; align-items:center; gap:12px; }
-  input[type=range]{ -webkit-appearance:none; appearance:none; flex:1; min-width:0; height:36px; margin:0; background:transparent; cursor:pointer; --p:0%; --fill:var(--base); --track:#dfe7ec; }
+  input[type=range]{ -webkit-appearance:none; appearance:none; flex:1; min-width:0; height:var(--tap); margin:0; background:transparent; cursor:pointer; --p:0%; --fill:var(--base); --track:var(--line); }
   input[type=range]::-webkit-slider-runnable-track{ height:8px; border-radius:99px; background:linear-gradient(90deg,var(--fill) var(--p),var(--track) var(--p)); }
-  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:26px; height:26px; margin-top:-9px; border-radius:50%; background:#fff; border:3px solid var(--fill);
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:30px; height:30px; margin-top:-11px; border-radius:50%; background:#fff; border:3px solid var(--fill);
         box-shadow:0 3px 10px -2px rgba(13,40,60,.45); transition:transform .15s; }
-  input[type=range]:active::-webkit-slider-thumb{ transform:scale(1.12); }
+  input[type=range]:active::-webkit-slider-thumb{ transform:scale(1.1); }
   input[type=range]::-moz-range-track{ height:8px; border-radius:99px; background:var(--track); }
   input[type=range]::-moz-range-progress{ height:8px; border-radius:99px; background:var(--fill); }
-  input[type=range]::-moz-range-thumb{ width:20px; height:20px; border-radius:50%; background:#fff; border:3px solid var(--fill); box-shadow:0 3px 10px -2px rgba(13,40,60,.45); }
+  input[type=range]::-moz-range-thumb{ width:24px; height:24px; border-radius:50%; background:#fff; border:3px solid var(--fill); box-shadow:0 3px 10px -2px rgba(13,40,60,.45); }
   #rain, #dockRain{ --fill:#2a7de1; }
   #depth, #dockDepth{ --fill:#0e9aa7; }
-  .big-val{ font-size:26px; font-weight:800; min-width:104px; text-align:right; font-variant-numeric:tabular-nums; letter-spacing:-.01em; line-height:1; }
-  .big-val small{ font-size:13px; font-weight:700; margin-left:3px; color:var(--ink2); }
-  .presets{ display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
-  .presets button{ border:1px solid var(--line); background:#fff; border-radius:999px; padding:6px 12px; font-size:12px; font-weight:600; cursor:pointer; transition:all .2s; }
-  .presets button:hover{ border-color:#b9c9d3; }
-  .presets button.on{ background:var(--navy); border-color:var(--navy); color:#fff; }
-  .counts{ display:flex; gap:8px; margin-top:12px; }
-  .count{ flex:1; text-align:center; border-radius:13px; padding:9px 4px 8px; font-size:11.5px; font-weight:700; line-height:1.35; }
-  .count b{ display:block; font-size:24px; line-height:1.15; font-variant-numeric:tabular-nums; }
-  .count b.bump{ animation:bump .38s ease-out; }
-  @keyframes bump{ 0%{ transform:scale(1); } 40%{ transform:scale(1.16); } 100%{ transform:scale(1); } }
-  .c-ok{ background:#e3f5ee; color:#0e8a5e; } .c-warn{ background:#fdf3d7; color:#9a7600; } .c-bad{ background:#fdeceb; color:#cf3e38; } .c-hard{ background:#fdeadb; color:#b85c00; }
-  .legend{ display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
-  .legend span{ font-size:11px; font-weight:700; border-radius:6px; padding:3px 8px; }
-  .disclaimer{ font-size:11.5px; color:#8a4b00; background:#fff8e6; border:1px solid #f0d9a0; border-radius:10px; padding:8px 11px; line-height:1.7; margin-top:10px; }
+  .big-val{ font-size:var(--t-num); font-weight:800; min-width:6.4rem; text-align:right; font-variant-numeric:tabular-nums; letter-spacing:-.01em; line-height:1; }
+  .big-val small{ font-size:var(--t-sm); font-weight:700; margin-left:4px; color:var(--ink2); }
+  .presets{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+  /* 件数：水深カードは3つ横並び、雨量カードは行で示す */
+  .counts{ display:flex; gap:8px; margin-top:14px; }
+  .count{ flex:1; text-align:center; border-radius:12px; padding:8px 4px; font-size:var(--t-sm); font-weight:700; line-height:1.4; }
+  .count b{ display:block; font-size:var(--t-xl); line-height:1.2; font-variant-numeric:tabular-nums; }
+  .count b.bump, .tally b.bump{ animation:bump .38s ease-out; }
+  @keyframes bump{ 0%{ transform:scale(1); } 40%{ transform:scale(1.12); } 100%{ transform:scale(1); } }
+  .c-ok{ background:var(--ok-bg); color:var(--ok-ink); } .c-warn{ background:var(--warn-bg); color:var(--warn-ink); }
+  .c-bad{ background:var(--bad-bg); color:var(--bad-ink); } .c-hard{ background:var(--hard-bg); color:var(--hard-ink); }
+  .c-none{ background:var(--soft); color:var(--ink2); }
+  .tally{ margin:14px 0 0; padding:0; list-style:none; border-top:1px solid var(--line); }
+  .tally li{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:7px 2px; border-bottom:1px solid var(--line); font-size:var(--t-sm); font-weight:700; }
+  .tally b{ display:inline-block; font-size:var(--t-lg); font-variant-numeric:tabular-nums; }
+  .tally .c-bad, .tally .c-hard, .tally .c-warn{ background:none; }
+  #rainDesc{ margin-top:12px; font-size:var(--t-md); color:var(--ink); }
+  .legend{ display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; }
+  .legend span{ font-size:var(--t-sm); font-weight:700; border-radius:6px; padding:3px 9px; }
+  .disclaimer{ margin:12px 0 0; font-size:var(--t-sm); color:#5c4600; background:var(--warn-bg); border-radius:10px; padding:10px 12px; line-height:1.75; }
 
   /* ===== 地図 ===== */
   .mapwrap{ position:relative; border-radius:var(--r); overflow:hidden; box-shadow:var(--shadow); border:1px solid rgba(16,40,60,.08); background:#e6edf0; }
-  #map{ height:62vh; min-height:380px; max-height:660px; position:relative; z-index:0; }
-  #mapNotice{ position:absolute; inset:0; z-index:1200; display:flex; align-items:center; justify-content:center; text-align:center; padding:16px; background:#eef3f0; color:var(--ink2); font-size:13px; line-height:1.7; pointer-events:none; }
+  #map{ height:46vh; height:clamp(300px, 46svh, 420px); position:relative; z-index:0; }
+  body[data-step="locate"] #map{ height:52vh; height:clamp(320px, 52svh, 520px); cursor:crosshair; }
+  @media (min-width:900px){ #map, body[data-step="locate"] #map{ height:62vh; min-height:380px; max-height:41rem; } }
+  #mapNotice{ position:absolute; inset:0; z-index:1200; display:flex; align-items:center; justify-content:center; text-align:center; padding:16px; background:#eef2f4; color:var(--ink2); font-size:var(--t-sm); line-height:1.7; pointer-events:none; }
   #mapRain{ position:absolute; inset:0; width:100%; height:100%; z-index:1; pointer-events:none; opacity:0; transition:opacity .6s; }
   #mapRain.on{ opacity:1; }
-  .map-chip{ position:absolute; z-index:2; left:10px; top:10px; display:flex; gap:6px; flex-wrap:wrap; max-width:calc(100% - 70px); }
-  .map-chip span, .map-chip button{ display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; background:rgba(255,255,255,.92); color:var(--ink);
-        border:1px solid rgba(16,40,60,.1); border-radius:999px; padding:4px 10px; box-shadow:0 2px 8px -4px rgba(0,0,0,.4); }
-  .map-chip button{ cursor:pointer; background:var(--navy); color:#fff; border-color:var(--navy); }
-  .map-chip i{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+  /* 凡例（押せない説明）と、ボタン（押せる）を見た目で分ける */
+  .map-legend{ position:absolute; z-index:2; left:10px; top:10px; display:flex; gap:4px 12px; flex-wrap:wrap; max-width:calc(100% - 74px); padding:5px 10px; border-radius:10px;
+               background:rgba(255,255,255,.94); color:var(--ink); font-size:var(--t-sm); font-weight:700; line-height:1.5; pointer-events:none; }
+  .map-legend span{ white-space:nowrap; }
+  .map-btn{ position:absolute; z-index:2; left:10px; bottom:30px; box-shadow:0 2px 8px -3px rgba(0,0,0,.45); }
   .leaflet-div-icon.pin-icon{ background:transparent; border:none; }
   .leaflet-popup-content{ margin:10px 12px; }
-  .leaflet-container{ font:inherit; }
-  .pin{ position:relative; width:24px; height:24px; margin:3px; border-radius:50%; border:3px solid #fff; box-shadow:0 2px 7px rgba(0,0,0,.45); cursor:pointer;
-        transition:background-color .4s, transform .25s, box-shadow .25s; }
+  .leaflet-container{ font-family:inherit; }
+  .leaflet-container .leaflet-control-attribution{ font-size:11px; line-height:1.5; padding:1px 6px; }
+  .leaflet-touch .leaflet-bar a, .leaflet-bar a{ width:var(--tap); height:var(--tap); line-height:var(--tap); font-size:22px; color:var(--ink); }
+  .pin{ position:relative; display:block; width:26px; height:26px; margin:5px; border-radius:50%; border:3px solid #fff; cursor:pointer;
+        box-shadow:0 0 0 1.5px rgba(16,34,44,.6), 0 2px 7px rgba(0,0,0,.45); transition:background-color .4s, transform .25s, box-shadow .25s; }
   .pin i{ position:absolute; inset:-3px; border-radius:50%; border:2px solid currentColor; opacity:0; pointer-events:none; }
   .pin.st-ok{ background:var(--ok); color:var(--ok); }
   .pin.st-warn{ background:var(--warn); color:var(--warn); }
   .pin.st-bad{ background:var(--bad); color:var(--bad); }
-  .pin.st-warn i{ animation:ping 2.6s ease-out infinite; }
-  .pin.st-bad i{ animation:ping 1.5s ease-out infinite; }
-  .pin.sel{ transform:scale(1.28); box-shadow:0 0 0 4px rgba(29,99,214,.4), 0 2px 10px rgba(0,0,0,.5); }
+  /* 状態が変わったときだけ、波紋を3回出す */
+  .pin.st-warn i{ animation:ping 1.8s ease-out 3; }
+  .pin.st-bad i{ animation:ping 1.5s ease-out 3; }
+  .pin.sel{ transform:scale(1.25); box-shadow:0 0 0 1.5px rgba(16,34,44,.6), 0 0 0 5px rgba(29,99,214,.6), 0 2px 10px rgba(0,0,0,.5); }
   @keyframes ping{ 0%{ transform:scale(1); opacity:.75; } 100%{ transform:scale(2.4); opacity:0; } }
+  /* 記号：注意は「！」、通行不可は「×」。色だけに頼らず見分けられるようにする */
+  .lg{ position:relative; display:inline-block; width:16px; height:16px; margin-right:5px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px rgba(16,34,44,.6); vertical-align:-3px; }
+  .lg.st-ok{ background:var(--ok); } .lg.st-warn{ background:var(--warn); } .lg.st-bad{ background:var(--bad); }
+  .pin::before, .pin::after, .lg::before, .lg::after{ content:""; position:absolute; left:50%; top:50%; width:0; height:0; border-radius:1px; pointer-events:none; }
+  .pin.st-warn::before{ width:2.6px; height:8px; margin:-6.5px 0 0 -1.3px; background:#2b2400; }
+  .pin.st-warn::after{ width:3px; height:3px; margin:3px 0 0 -1.5px; border-radius:50%; background:#2b2400; }
+  .pin.st-bad::before, .pin.st-bad::after{ width:12px; height:2.6px; margin:-1.3px 0 0 -6px; background:#fff; }
+  .lg.st-warn::before{ width:2px; height:5.5px; margin:-4.5px 0 0 -1px; background:#2b2400; }
+  .lg.st-warn::after{ width:2.2px; height:2.2px; margin:2.2px 0 0 -1.1px; border-radius:50%; background:#2b2400; }
+  .lg.st-bad::before, .lg.st-bad::after{ width:8px; height:2px; margin:-1px 0 0 -4px; background:#fff; }
+  .pin.st-bad::before, .lg.st-bad::before{ transform:rotate(45deg); }
+  .pin.st-bad::after, .lg.st-bad::after{ transform:rotate(-45deg); }
   .office-pin{ font-size:19px; line-height:1; width:34px; height:34px; display:flex; align-items:center; justify-content:center; background:#fff; border:2px solid var(--base); border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.4); cursor:pointer; }
-  .me-pin{ position:relative; width:40px; height:40px; cursor:pointer; }
-  .me-pin span{ position:absolute; left:0; right:0; bottom:2px; text-align:center; font-size:34px; line-height:1; filter:drop-shadow(0 2px 4px rgba(0,0,0,.55));
-        animation:meDrop .5s cubic-bezier(.2,1.5,.4,1) both; }
-  .me-pin i{ position:absolute; left:50%; bottom:-4px; width:16px; height:16px; margin-left:-8px; border-radius:50%; background:rgba(29,99,214,.45); animation:mePulse 1.8s ease-out infinite; }
-  @keyframes meDrop{ from{ transform:translateY(-28px); } to{ transform:none; } }
+  /* 今いる場所：青いピン（通行不可の赤と区別する） */
+  .me-pin{ position:relative; width:40px; height:48px; cursor:pointer; }
+  .me-pin svg{ position:absolute; left:2px; top:0; width:36px; height:45px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.45)); animation:meDrop .45s cubic-bezier(.2,.8,.2,1) both; }
+  .me-pin i{ position:absolute; left:50%; top:36px; width:16px; height:16px; margin-left:-8px; border-radius:50%; background:rgba(29,99,214,.45); animation:mePulse 1.8s ease-out 4; }
+  @keyframes meDrop{ from{ transform:translateY(-26px); } to{ transform:none; } }
   @keyframes mePulse{ 0%{ transform:scale(.6); opacity:.9; } 100%{ transform:scale(3.2); opacity:0; } }
-  .pin-pop{ width:30px; height:30px; }
-  .pin-pop.go{ animation:pinIn .5s cubic-bezier(.2,1.5,.4,1) both; }
+  .pin-pop{ width:36px; height:36px; }
+  .pin-pop.go{ animation:pinIn .45s cubic-bezier(.2,.8,.2,1) both; }
   @keyframes pinIn{ from{ transform:scale(0); } to{ transform:scale(1); } }
-  .pop{ font-size:12.5px; line-height:1.65; color:#1c2b26; max-width:230px; }
+  .pop{ font-size:var(--t-sm); line-height:1.65; color:var(--ink); max-width:230px; }
   .addr-row{ display:flex; gap:8px; flex-wrap:wrap; }
-  .addr-row input{ flex:1 1 200px; min-width:0; padding:10px 12px; border:1.5px solid var(--line); border-radius:11px; font:inherit; font-size:16px; background:#fff; color:var(--ink); -webkit-appearance:none; appearance:none; }
-  .addr-btn{ border:1.5px solid var(--base); background:var(--base); color:#fff; border-radius:11px; padding:9px 13px; font-size:13.5px; font-weight:700; cursor:pointer; white-space:nowrap; }
-  .addr-btn.ghost{ background:#fff; color:var(--ink2); border-color:var(--line); font-weight:600; }
+  .addr-row input{ flex:1 1 200px; min-width:0; min-height:var(--tap); padding:10px 12px; border:1.5px solid var(--edge); border-radius:12px; font:inherit; font-size:1rem; background:#fff; color:var(--ink); -webkit-appearance:none; appearance:none; }
+  .addr-row input::placeholder{ color:#5d6c76; }
+
+  /* ===== 今いる場所を選ぶ画面・本編の案内 ===== */
+  .ask{ padding:10px 4px 0; }
+  .ask h2{ font-size:clamp(1.375rem,5.8vw,1.75rem); line-height:1.35; margin:0 0 6px; font-weight:800; letter-spacing:.01em; }
+  .ask p{ margin:0; font-size:var(--t-md); color:var(--ink2); line-height:1.75; }
+  .ask .btn{ margin-top:12px; width:100%; }
+  @media (min-width:600px){ .ask .btn{ width:auto; min-width:16rem; } }
+  .ask .ask-msg{ color:var(--base); font-weight:700; min-height:1.75em; margin-top:6px; }
+  #locTools .sub{ margin-top:8px; }
+  #locTools .btn{ margin-top:14px; width:100%; }
+  #locTools .addr-row .btn{ margin-top:0; width:auto; }
+  .mebar{ padding:6px 4px 0; }
+  .me-row{ display:flex; align-items:center; gap:10px; }
+  .me-place{ flex:1; min-width:0; margin:0; font-size:var(--t-md); font-weight:800; line-height:1.5; }
+  .me-place svg{ width:15px; height:19px; margin-right:6px; vertical-align:-3px; }
+  .next-btn{ display:flex; align-items:center; gap:12px; width:100%; min-height:52px; margin-top:10px; padding:9px 16px; border:0; border-radius:14px; background:var(--base); color:#fff; text-align:left; cursor:pointer;
+             box-shadow:0 8px 18px -12px rgba(13,40,60,.8); transition:background-color .2s; }
+  .next-btn:hover{ background:#174fae; }
+  .next-btn span{ flex:1; min-width:0; font-size:var(--t-md); font-weight:800; line-height:1.4; }
+  .next-btn small{ display:block; font-size:var(--t-sm); font-weight:600; }
+  .next-btn::after{ content:""; flex:none; width:10px; height:10px; margin-right:4px; border-top:2.5px solid #fff; border-right:2.5px solid #fff; transform:rotate(45deg); }
+  .me-hint{ margin:8px 0 0; font-size:var(--t-sm); color:var(--ink2); line-height:1.6; }
 
   /* ===== 3D ===== */
-  .stage3d{ position:relative; border-radius:14px; overflow:hidden; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; background:linear-gradient(#a9cbe4,#e3edf2); aspect-ratio:16/10; min-height:280px; }
-  @media (max-width:640px){ .stage3d{ aspect-ratio:4/3.5; } }
+  .stage3d{ position:relative; width:100%; min-width:0; border-radius:14px; overflow:hidden; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; background:linear-gradient(#a9cbe4,#e3edf2); aspect-ratio:16/10; min-height:300px; }
+  @media (max-width:640px){ .stage3d{ aspect-ratio:auto; height:340px; } }
   .stage3d canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; cursor:grab; touch-action:pan-y; outline:none; }
   .stage3d canvas:active{ cursor:grabbing; }
-  .v3-load{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:18px; font-size:13px; line-height:1.8; color:#31505f; background:linear-gradient(#b7d4e8,#e6eef2); transition:opacity .6s; z-index:3; }
+  .v3-load{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:18px; font-size:var(--t-sm); line-height:1.8; color:#24414f; background:linear-gradient(#b7d4e8,#e6eef2); transition:opacity .6s; z-index:3; }
   .stage3d.ready .v3-load{ opacity:0; pointer-events:none; }
   .v3-hud{ position:absolute; z-index:2; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
   .v3-hud.tl{ left:10px; top:10px; max-width:calc(100% - 20px); flex-direction:column; align-items:flex-start; gap:5px; }
-  .v3-hud.br{ right:10px; bottom:10px; }
-  .chip{ font-size:11px; font-weight:700; color:#fff; background:rgba(9,28,42,.72); border-radius:999px; padding:4px 10px; -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); line-height:1.5; }
-  .chip i{ display:inline-block; width:14px; height:3px; border-radius:2px; vertical-align:middle; margin:0 4px 0 6px; }
-  .chip i:first-child{ margin-left:0; }
-  .v3-btn{ border:0; cursor:pointer; font-size:11.5px; font-weight:700; color:var(--ink); background:rgba(255,255,255,.9); border-radius:999px; padding:5px 11px; box-shadow:0 2px 8px -4px rgba(0,0,0,.5); transition:all .2s; }
-  .v3-btn.on{ background:var(--navy); color:#fff; }
-  .v3-btn.sq{ width:30px; height:30px; padding:0; font-size:16px; line-height:1; }
+  .v3-hud.br{ right:8px; bottom:8px; left:8px; justify-content:flex-end; }
+  .chip{ font-size:var(--t-sm); font-weight:700; color:#fff; background:rgba(9,28,42,.82); border-radius:8px; padding:3px 10px; line-height:1.5; }
+  .v3-legend{ margin:10px 0 0; font-size:var(--t-sm); font-weight:700; color:var(--ink); line-height:1.6; font-variant-numeric:tabular-nums; }
+  .v3-legend span{ display:inline-block; white-space:nowrap; margin-right:16px; }
+  .v3-legend i{ display:inline-block; width:16px; height:5px; border-radius:2px; vertical-align:middle; margin:0 6px 2px 0; }
+  .v3-btn{ min-height:var(--tap); min-width:var(--tap); padding:0 14px; border:1.5px solid var(--edge); border-radius:999px; cursor:pointer; font-size:var(--t-sm); font-weight:700; color:var(--ink); background:#fff;
+           box-shadow:0 2px 8px -4px rgba(0,0,0,.5); transition:background-color .2s, color .2s; }
+  .v3-btn.on{ background:var(--navy); border-color:var(--navy); color:#fff; }
+  .v3-btn.sq{ width:var(--tap); padding:0; font-size:1.25rem; line-height:1; }
+  @media (max-width:359px){ .v3-btn{ padding:0 9px; } }
   .v3-tag{ position:absolute; left:0; top:0; z-index:1; pointer-events:none; opacity:0; transition:opacity .25s; will-change:transform; }
-  .v3-tag > span{ position:absolute; white-space:nowrap; font-size:12.5px; font-weight:800; color:var(--tagfg); background:var(--tagbg); padding:4px 9px; border-radius:8px; font-variant-numeric:tabular-nums; }
+  .v3-tag > span{ position:absolute; white-space:nowrap; font-size:var(--t-sm); font-weight:800; color:var(--tagfg); background:var(--tagbg); padding:3px 9px; border-radius:8px; font-variant-numeric:tabular-nums; }
   .v3-tag > span::after{ content:""; position:absolute; top:50%; margin-top:-5px; border:5px solid transparent; }
   .v3-tag.L > span{ transform:translate(-100%,-50%); margin-left:-9px; }
   .v3-tag.L > span::after{ right:-6px; border-right:0; border-left-color:var(--tagbg); }
   .v3-tag.R > span{ transform:translate(0,-50%); margin-left:9px; }
   .v3-tag.R > span::after{ left:-6px; border-left:0; border-right-color:var(--tagbg); }
-  .v3-tag.water{ --tagbg:rgba(9,28,42,.9); --tagfg:#fff; }
-  .v3-tag.floor{ --tagbg:rgba(255,212,0,.96); --tagfg:#2b2400; }
-  .v3-tag.floor.over{ --tagbg:rgba(222,74,68,.97); --tagfg:#fff; }
+  .v3-tag.water{ --tagbg:rgba(9,28,42,.92); --tagfg:#fff; }
+  .v3-tag.floor{ --tagbg:#ffd400; --tagfg:#2b2400; }
+  .v3-tag.floor.over{ --tagbg:var(--bad-ink); --tagfg:#fff; }
   .imp-steps{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:12px; }
-  .imp{ border-radius:12px; padding:8px 8px 7px; text-align:center; background:#f1f5f7; color:var(--ink3); border:1.5px solid transparent; transition:all .3s; line-height:1.4; }
-  .imp b{ display:block; font-size:12px; } .imp span{ font-size:10.5px; font-weight:600; }
-  .imp.on{ color:#fff; box-shadow:0 8px 18px -10px rgba(0,0,0,.5); }
-  .imp.on[data-k="0"]{ background:#e2a000; } .imp.on[data-k="1"]{ background:#e8590c; } .imp.on[data-k="2"]{ background:#c0262d; }
-  #impText{ font-size:13px; line-height:1.85; margin:10px 0 4px; min-height:4.5em; }
-  .src{ font-size:10.5px; color:var(--ink2); line-height:1.65; margin:6px 0 0; }
+  .imp{ border-radius:10px; padding:8px 6px; text-align:center; background:var(--soft); color:var(--ink2); transition:background-color .3s, color .3s; line-height:1.45; }
+  .imp b{ display:block; font-size:var(--t-sm); } .imp span{ font-size:var(--t-sm); font-weight:600; }
+  .imp.on{ color:#fff; }
+  .imp.on[data-k="0"]{ background:var(--warn); color:#2b2400; } .imp.on[data-k="1"]{ background:#c2410c; } .imp.on[data-k="2"]{ background:var(--deep); }
+  #impText{ font-size:var(--t-md); line-height:1.85; margin:12px 0 4px; min-height:4.5em; }
+  .src{ font-size:var(--t-xs); color:var(--ink2); line-height:1.7; margin:8px 0 0; }
 
-  /* ===== 地点詳細 ===== */
+  /* ===== 地点詳細：判定 → ゲージ → 写真 → 場所の情報 の順 ===== */
+  #detail, #card3d{ scroll-margin-top:12px; scroll-margin-bottom:calc(var(--dockH) + 26px + env(safe-area-inset-bottom)); }
   .d-head{ display:flex; gap:10px; align-items:flex-start; justify-content:space-between; }
-  #detail h2{ font-size:17px; margin:0 0 4px; line-height:1.4; }
-  #detail .meta{ font-size:12px; color:var(--ink2); line-height:1.7; }
-  .badge{ font-size:10.5px; font-weight:800; border-radius:7px; padding:3px 8px; white-space:nowrap; transition:background-color .3s, color .3s; }
-  .badge.b-ok{ background:#e3f5ee; color:#0e8a5e; } .badge.b-warn{ background:#fdf3d7; color:#9a7600; } .badge.b-bad{ background:#fdeceb; color:#cf3e38; }
-  .badge.big{ font-size:12.5px; padding:5px 11px; border-radius:9px; flex:none; }
-  .photo-wrap{ margin:12px 0 4px; }
-  .photo-frame{ position:relative; border-radius:12px; overflow:hidden; background:#e8eeeb; }
+  #detail h2{ font-size:var(--t-xl); margin:0; line-height:1.4; }
+  #detail .meta{ margin:12px 0 0; font-size:var(--t-sm); color:var(--ink2); line-height:1.75; }
+  .badge{ font-size:var(--t-sm); font-weight:800; border-radius:7px; padding:2px 9px; white-space:nowrap; transition:background-color .3s, color .3s; }
+  .badge.b-ok{ background:var(--ok-bg); color:var(--ok-ink); } .badge.b-warn{ background:var(--warn-bg); color:var(--warn-ink); } .badge.b-bad{ background:var(--bad-bg); color:var(--bad-ink); }
+  .badge.big{ font-size:var(--t-md); padding:4px 12px; border-radius:9px; flex:none; margin-top:2px; }
+  .status{ margin:4px 0 0; font-size:var(--t-lg); font-weight:800; line-height:1.5; transition:color .3s; font-variant-numeric:tabular-nums; }
+  .gauge{ position:relative; height:16px; border-radius:8px; margin:14px 0 0; background:var(--line); }
+  .gauge .tick{ position:absolute; top:-4px; width:2px; height:24px; margin-left:-1px; background:rgba(16,34,44,.6); border-radius:1px; }
+  .gauge .now{ position:absolute; top:-6px; width:5px; height:28px; background:var(--ink); border-radius:3px; transform:translateX(-50%); transition:left .3s cubic-bezier(.2,.7,.2,1); box-shadow:0 0 0 2px #fff; }
+  .g-legend{ list-style:none; margin:10px 0 2px; padding:0; display:flex; flex-wrap:wrap; gap:2px 16px; font-size:var(--t-sm); font-weight:700; font-variant-numeric:tabular-nums; }
+  .g-legend i{ display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  .photo-wrap{ margin:14px 0 0; }
+  .photo-frame{ position:relative; border-radius:12px; overflow:hidden; background:#e6ecef; }
   .photo-frame img{ display:block; width:100%; -webkit-user-drag:none; }
   .photo-frame.cmp, .photo-frame.cmp img{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   .ph-stack{ position:absolute; inset:0; }
   .ph-stack img{ position:absolute; inset:0; height:100%; object-fit:cover; opacity:0; transition:opacity .45s linear; }
   .photo-frame.cmp{ touch-action:pan-y; cursor:ew-resize; }
   .cmp-handle{ display:none; position:absolute; top:0; bottom:0; left:50%; width:3px; margin-left:-1.5px; background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.25); pointer-events:none; }
-  .cmp-handle i{ position:absolute; top:50%; left:50%; width:38px; height:38px; margin:-19px 0 0 -19px; border-radius:50%; background:#fff; box-shadow:0 3px 10px rgba(0,0,0,.4);
-                 display:grid; place-items:center; font-style:normal; font-size:13px; font-weight:800; color:var(--navy); letter-spacing:2px; }
+  .cmp-handle i{ position:absolute; top:50%; left:50%; width:44px; height:44px; margin:-22px 0 0 -22px; border-radius:50%; background:#fff; box-shadow:0 3px 10px rgba(0,0,0,.4); }
+  .cmp-handle i::before, .cmp-handle i::after{ content:""; position:absolute; top:50%; width:8px; height:8px; margin-top:-4px; border-top:2.5px solid var(--navy); border-left:2.5px solid var(--navy); }
+  .cmp-handle i::before{ left:11px; transform:rotate(-45deg); }
+  .cmp-handle i::after{ right:11px; transform:rotate(135deg); }
   .photo-frame.cmp .cmp-handle{ display:block; }
-  .ph-tag{ position:absolute; top:8px; font-size:11px; font-weight:700; color:#fff; background:rgba(10,30,55,.78); padding:3px 9px; border-radius:7px; pointer-events:none; }
+  .ph-tag{ position:absolute; top:8px; font-size:var(--t-sm); font-weight:700; color:#fff; background:rgba(10,30,55,.86); padding:2px 9px; border-radius:7px; pointer-events:none; max-width:calc(100% - 16px); }
   .ph-tag.l{ left:8px; } .ph-tag.r{ right:8px; display:none; }
+  .photo-frame.cmp .ph-tag{ max-width:calc(50% - 12px); }
   .photo-frame.cmp .ph-tag.r{ display:block; }
   .photo-overlay{ position:absolute; left:0; right:0; bottom:0; pointer-events:none; background:linear-gradient(180deg, rgba(38,96,160,.45), rgba(24,64,120,.78)); }
-  .photo-overlay .ol-label{ position:absolute; top:6px; left:8px; background:rgba(10,30,55,.75); color:#fff; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; }
-  .photo-none{ border:1.5px dashed var(--line); border-radius:12px; padding:26px 10px; text-align:center; color:var(--ink2); font-size:12px; }
-  .photo-toggle{ display:flex; gap:6px; margin-top:8px; background:#f1f5f7; border-radius:999px; padding:4px; }
-  .photo-toggle button{ flex:1; border:0; background:transparent; border-radius:999px; padding:8px 0; font-size:13.5px; font-weight:700; cursor:pointer; color:var(--ink2); transition:all .25s; }
-  .photo-toggle button.on{ background:#fff; color:var(--base); box-shadow:0 3px 10px -5px rgba(13,40,60,.5); }
-  .photo-toggle button:disabled{ opacity:.35; cursor:default; }
-  .credit{ font-size:10px; color:var(--ink2); margin-top:6px; line-height:1.5; }
-  .gauge{ position:relative; height:14px; border-radius:7px; margin:28px 0 6px; background:#dfe7ec; }
-  .gauge .mark{ position:absolute; top:-21px; font-size:10px; font-weight:700; white-space:nowrap; color:var(--ink2); }
-  .gauge .mark.m1{ transform:translateX(-100%); padding-right:4px; } .gauge .mark.m2{ padding-left:4px; } .gauge .mark.m3{ transform:translateX(-50%); }
-  .gauge .tick{ position:absolute; top:-5px; width:2px; height:19px; margin-left:-1px; background:rgba(16,34,44,.55); border-radius:1px; }
-  .gauge .now{ position:absolute; top:-5px; width:4px; height:24px; background:#16211d; border-radius:2px; transform:translateX(-50%); transition:left .3s cubic-bezier(.2,.7,.2,1); box-shadow:0 0 0 2px #fff; }
-  .status{ font-size:15px; font-weight:800; margin-top:10px; transition:color .3s; }
-  .link-btn{ margin-top:10px; border:1.5px solid var(--line); background:#fff; border-radius:11px; padding:8px 12px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--base); }
+  .photo-overlay .ol-label{ position:absolute; top:6px; left:8px; background:rgba(10,30,55,.86); color:#fff; font-size:var(--t-sm); font-weight:700; padding:2px 8px; border-radius:6px; }
+  .photo-none{ border:1.5px dashed var(--edge); border-radius:12px; padding:26px 10px; text-align:center; color:var(--ink2); font-size:var(--t-sm); }
+  .photo-toggle{ display:flex; gap:6px; margin-top:10px; }
+  .photo-toggle .seg{ flex:1; padding:6px 4px; }
+  .credit{ font-size:var(--t-xs); color:var(--ink2); margin-top:8px; line-height:1.6; }
+  #to3d{ margin-top:12px; }
 
   /* ===== 地点一覧 ===== */
-  .list-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+  .list-head{ display:flex; align-items:center; justify-content:space-between; gap:8px 12px; flex-wrap:wrap; margin-bottom:6px; }
   .list-head .lbl{ margin:0; }
-  .filters{ display:flex; gap:5px; }
-  .filters button{ border:1px solid var(--line); background:#fff; border-radius:999px; padding:4px 10px; font-size:11.5px; font-weight:700; cursor:pointer; color:var(--ink2); transition:all .2s; }
-  .filters button b{ font-variant-numeric:tabular-nums; margin-left:3px; }
-  .filters button.on{ background:var(--navy); color:#fff; border-color:var(--navy); }
-  .site{ display:grid; grid-template-columns:14px 1fr auto; gap:10px; align-items:center; width:100%; text-align:left;
-         background:#fff; border:0; border-bottom:1px solid var(--line); padding:11px 6px; cursor:pointer; color:var(--ink); border-radius:0; transition:background .2s; }
-  .site:hover{ background:#f6f9fb; }
-  .site.cur{ background:#eef4ff; box-shadow:inset 3px 0 0 var(--base); }
+  .filters{ display:flex; gap:6px; flex-wrap:wrap; }
+  .filters .seg b{ font-variant-numeric:tabular-nums; margin-left:5px; }
+  .site{ display:grid; grid-template-columns:14px 1fr auto; gap:10px; align-items:center; width:100%; min-height:60px; text-align:left;
+         background:#fff; border:0; border-bottom:1px solid var(--line); padding:10px 6px; cursor:pointer; color:var(--ink); border-radius:0; transition:background-color .2s; }
+  .site:hover{ background:#f3f7fa; }
+  .site.cur{ background:#e9f1ff; }
   .site:last-child{ border-bottom:0; }
   .dot{ width:12px; height:12px; border-radius:50%; transition:background-color .35s; }
-  .site .nm{ font-weight:700; font-size:14px; }
-  .site .meta{ font-size:11px; color:var(--ink2); margin-top:2px; line-height:1.5; display:block; }
-  .list-more{ display:block; width:100%; margin-top:8px; border:1.5px solid var(--line); background:#fff; border-radius:11px; padding:10px; font-size:13px; font-weight:700; color:var(--base); cursor:pointer; }
-  #listEmpty{ display:none; padding:18px 6px; font-size:12.5px; color:var(--ink2); text-align:center; }
-  .q{ font-size:13.5px; line-height:1.9; margin:0; padding:0; list-style:none; counter-reset:q; }
-  .q li{ counter-increment:q; position:relative; padding:8px 0 8px 38px; border-bottom:1px dashed var(--line); }
+  .site .nm{ display:block; font-weight:700; font-size:var(--t-md); line-height:1.45; }
+  .site .meta{ font-size:var(--t-sm); color:var(--ink2); margin-top:2px; line-height:1.5; display:block; }
+  /* 一覧の補足：スマホは距離と道路名だけ、広い画面は全部 */
+  .site .m-full{ display:none; }
+  @media (min-width:900px){ .site .m-short{ display:none; } .site .m-full{ display:block; } }
+  .list-more{ width:100%; margin-top:10px; }
+  #listEmpty{ display:none; padding:18px 6px; font-size:var(--t-sm); color:var(--ink2); text-align:center; }
+  .q{ font-size:var(--t-md); line-height:1.85; margin:0; padding:0; list-style:none; counter-reset:q; }
+  .q li{ counter-increment:q; position:relative; padding:9px 0 9px 40px; border-bottom:1px solid var(--line); }
   .q li:last-child{ border-bottom:0; }
-  .q li::before{ content:counter(q); position:absolute; left:0; top:8px; width:26px; height:26px; border-radius:50%; background:var(--navy); color:#fff; font-size:12.5px; font-weight:800; display:grid; place-items:center; }
-  .notes{ font-size:11.5px; color:var(--ink2); line-height:1.8; margin:0; padding-left:1.3em; }
-  .notes li{ margin-bottom:4px; }
+  .q li::before{ content:counter(q); position:absolute; left:0; top:10px; width:28px; height:28px; border-radius:50%; background:var(--navy); color:#fff; font-size:var(--t-sm); font-weight:800; display:grid; place-items:center; }
+  .notes{ font-size:var(--t-sm); color:var(--ink2); line-height:1.85; margin:6px 0 0; padding-left:1.3em; }
+  .notes li{ margin-bottom:6px; }
 
-  /* ===== 下部ドック（シナリオ再生＋スライダー） ===== */
-  .dock{ position:fixed; left:50%; bottom:calc(10px + env(safe-area-inset-bottom)); transform:translateX(-50%); width:min(780px, calc(100% - 16px - env(safe-area-inset-left) - env(safe-area-inset-right))); z-index:1500;
-         color:#fff; background:rgba(8,26,40,.9); border:1px solid rgba(255,255,255,.12); border-radius:20px; overflow:hidden;
+  /* ===== 下のバー（大雨シナリオの再生と、雨量・水深のスライダー） ===== */
+  .dock{ position:fixed; left:50%; bottom:calc(10px + env(safe-area-inset-bottom)); transform:translateX(-50%); width:min(50rem, calc(100% - 16px - env(safe-area-inset-left) - env(safe-area-inset-right))); z-index:1500;
+         color:#fff; background:rgba(8,26,40,.94); border:1px solid rgba(255,255,255,.14); border-radius:20px; overflow:hidden;
          box-shadow:0 20px 44px -16px rgba(4,18,30,.75); -webkit-backdrop-filter:blur(14px) saturate(140%); backdrop-filter:blur(14px) saturate(140%); }
-  .dock-prog{ height:3px; background:rgba(255,255,255,.08); }
-  .dock-prog i{ display:block; height:100%; width:0; background:linear-gradient(90deg,#4cc9f0,#ffd166 60%,#ef476f); }
-  .dock-in{ display:flex; gap:12px; align-items:center; padding:9px 12px 11px 12px; }
-  .play{ flex:none; width:48px; height:48px; border-radius:50%; border:0; cursor:pointer; color:#fff; display:grid; place-items:center;
-         background:linear-gradient(135deg,#4cc9f0,#2a7de1); box-shadow:0 8px 18px -8px rgba(76,201,240,.9); transition:transform .15s; }
+  .dock-prog{ height:3px; background:rgba(255,255,255,.1); }
+  .dock-prog i{ display:block; height:100%; width:0; background:linear-gradient(90deg,#4cc9f0,#ffd166 60%,#ff7a6b); }
+  .dock-in{ display:grid; grid-template-columns:48px minmax(0,1fr) auto; grid-template-areas:"play cap min" "play sl min"; gap:2px 14px; align-items:center; padding:10px 12px 12px; }
+  .play{ grid-area:play; width:48px; height:48px; border-radius:50%; border:0; cursor:pointer; color:#fff; display:grid; place-items:center;
+         background:#2a7de1; box-shadow:0 6px 14px -6px rgba(0,0,0,.7); transition:transform .15s, background-color .2s; }
+  .play:hover{ background:#3b8bec; }
   .play:active{ transform:scale(.94); }
-  .play svg{ width:20px; height:20px; fill:currentColor; }
-  .dock-main{ flex:1; min-width:0; }
-  .dock-cap{ font-size:12px; line-height:1.5; color:rgba(255,255,255,.8); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .dock-cap b{ color:#bfeaf3; margin-right:7px; font-size:12.5px; }
-  .dock-sl{ display:grid; grid-template-columns:1fr 1fr; gap:0 18px; margin-top:2px; }
-  .dock-sl label{ display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:8px; font-size:11.5px; font-weight:700; color:rgba(255,255,255,.78); }
-  .dock-sl input[type=range]{ height:30px; --track:rgba(255,255,255,.18); }
-  .dock-sl input[type=range]::-webkit-slider-thumb{ width:22px; height:22px; margin-top:-7px; }
-  .dock-sl output{ min-width:64px; text-align:right; font-size:13px; font-weight:800; color:#fff; font-variant-numeric:tabular-nums; }
-  .dock-min{ flex:none; align-self:flex-start; width:28px; height:28px; border-radius:50%; border:0; background:rgba(255,255,255,.1); color:#fff; cursor:pointer; font-size:13px; line-height:1; }
-  .dock.min{ width:auto; }
-  .dock.min .dock-main{ display:none; }
+  .play svg{ width:22px; height:22px; fill:currentColor; }
+  .dock-cap{ grid-area:cap; min-width:0; margin:0; font-size:var(--t-sm); line-height:1.5; color:#e3eef3; }
+  .dock-cap b{ color:#bfeaf3; margin-right:8px; font-variant-numeric:tabular-nums; }
+  .dock-sl{ grid-area:sl; display:grid; grid-template-columns:1fr 1fr; gap:0 20px; min-width:0; }
+  .dock-sl label{ display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; font-size:var(--t-sm); font-weight:700; color:#e3eef3; }
+  .dock-sl input[type=range]{ --track:rgba(255,255,255,.28); }
+  .dock-sl output{ min-width:4.8em; text-align:right; font-size:var(--t-md); font-weight:800; color:#fff; font-variant-numeric:tabular-nums; }
+  .dock-min{ grid-area:min; align-self:start; min-width:var(--tap); min-height:var(--tap); padding:0 10px; border-radius:12px; border:1px solid rgba(255,255,255,.34); background:transparent; color:#fff;
+             cursor:pointer; font-size:var(--t-sm); font-weight:700; }
+  .dock-min:hover{ background:rgba(255,255,255,.1); }
+  .dock-pill{ grid-area:pill; display:none; min-width:0; margin:0; font-size:var(--t-sm); line-height:1.45; color:#e3eef3; font-variant-numeric:tabular-nums; }
+  .dock-pill b{ display:block; color:#fff; }
+  /* たたんだ状態：再生ボタンと今の値だけ */
+  .dock.min .dock-in{ grid-template-areas:"play pill min"; }
+  .dock.min .dock-cap, .dock.min .dock-sl{ display:none; }
   .dock.min .dock-pill{ display:block; }
-  .dock-pill{ display:none; font-size:12px; font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums; }
-  @media (max-width:600px){ :root{ --dockH:142px; } .dock-sl{ grid-template-columns:1fr; } .dock-in{ gap:10px; } .play{ width:44px; height:44px; }
-    .hero-in{ padding-top:calc(20px + env(safe-area-inset-top)); } .lead{ font-size:13px; } .v3-tag > span{ font-size:11.5px; padding:3px 7px; } }
+  .dock.min .dock-min{ align-self:center; }
+  @media (max-width:600px){
+    .dock-in{ grid-template-areas:"cap cap min" "play sl sl"; gap:6px 12px; }
+    .dock-cap{ min-height:4.5em; }
+    .dock-cap b{ display:block; margin:0; }
+    .dock-sl{ grid-template-columns:1fr; gap:0; }
+  }
 
   /* ===== 画面の流れ（body の data-step）：area＝エリア選択 → locate＝今いる場所 → main＝本編 ===== */
   body[data-step="area"]{ padding-bottom:0; }
@@ -309,35 +406,17 @@
   body[data-step="area"] .hero-in{ width:100%; padding-bottom:76px; }
   body[data-step="area"] .topbar{ display:none; }
   body:not([data-step="area"]) .start{ display:none; }
-  body:not([data-step="area"]) .hero-in{ padding-top:calc(12px + env(safe-area-inset-top)); padding-bottom:40px; }
-  body[data-step="locate"] details.howto{ display:none; }
-  body[data-step="main"] details.howto{ margin-top:6px; }
+  body:not([data-step="area"]) .hero-in{ padding-top:calc(10px + env(safe-area-inset-top)); padding-bottom:32px; }
   body:not([data-step="locate"]) .ask, body:not([data-step="locate"]) #locTools{ display:none; }
-  body[data-step="locate"] .c-ctrl, body[data-step="locate"] .c-side, body[data-step="locate"] .c-q, body[data-step="locate"] .c-3d,
-  body[data-step="locate"] .below, body[data-step="locate"] .map-chip, body[data-step="locate"] .mebar{ display:none; }
-  body[data-step="locate"] #map{ cursor:crosshair; }
-  @media (min-width:1080px){
-    body[data-step="locate"] .layout{ display:block; max-width:900px; margin:0 auto; }
-    body[data-step="locate"] .colR{ display:none; }
-  }
-  body[data-step="main"] .dock{ animation:dockIn .5s cubic-bezier(.2,.7,.2,1) both; }
+  body[data-step="locate"] .colR, body[data-step="locate"] .colL2, body[data-step="locate"] .below,
+  body[data-step="locate"] .map-legend, body[data-step="locate"] .map-btn, body[data-step="locate"] .mebar{ display:none; }
+  @media (min-width:900px){ body[data-step="locate"] .layout{ display:block; max-width:56rem; margin:0 auto; } }
+  body[data-step="main"] .dock{ animation:dockIn .45s cubic-bezier(.2,.8,.2,1) both; }
   @keyframes dockIn{ from{ transform:translate(-50%, 150%); } to{ transform:translate(-50%, 0); } }
-  .ask{ padding:8px 4px 0; }
-  .ask h2{ font-size:clamp(21px,5.6vw,28px); line-height:1.35; margin:0 0 6px; font-weight:800; letter-spacing:.01em; }
-  .ask p{ margin:0; font-size:13.5px; color:var(--ink2); line-height:1.75; }
-  .ask .ask-msg{ color:var(--base); font-weight:700; min-height:1.75em; margin-top:4px; }
-  .mebar{ display:flex; align-items:center; gap:10px; padding:2px 4px; font-size:13.5px; font-weight:800; line-height:1.5; }
-  .mebar > span{ flex:1; min-width:0; }
-  .mebar small{ display:block; font-size:11.5px; font-weight:600; color:var(--ink2); }
-  .mebar button{ flex:none; border:1.5px solid var(--line); background:#fff; color:var(--base); border-radius:999px; padding:7px 13px; font-size:12px; font-weight:700; cursor:pointer; }
-  .loc-row{ display:flex; gap:8px; flex-wrap:wrap; }
-  .loc-row .addr-btn{ flex:1 1 150px; padding:12px 13px; font-size:14px; }
-  .addr-btn:disabled{ opacity:.55; cursor:default; }
 
   @media (prefers-reduced-motion: reduce){
-    .rise, .hero-wave, .eyebrow i, .pin i, .count b.bump{ animation:none !important; }
+    .hero-wave, .pin i, .count b.bump, .tally b.bump, .pin-pop.go, .me-pin svg, .me-pin i, body[data-step="main"] .dock{ animation:none !important; }
     .ph-stack img, .gauge .now{ transition:none; }
-    .pin-pop.go, .me-pin span, .me-pin i, body[data-step="main"] .dock{ animation:none !important; }
   }
 </style>
 </head>
@@ -346,10 +425,9 @@
   <div class="hero-in">
     <!-- スタート画面：エリアを選ぶ -->
     <div class="start" id="start">
-      <div class="eyebrow"><i></i>研修用シミュレーション</div>
       <h1>水害マップ（研修用）<span>洛西・鹿児島・都城</span></h1>
       <p class="lead">アンダーパス冠水リスクを見る研修用シミュレーションです。公式資料に載る洛西エリア（京都）40か所、鹿児島エリア8か所、都城エリア（宮崎）8か所の計56か所を収録しています。</p>
-      <div class="hero-note">※ 水深の閾値と水害時画像は研修用の想定です。実際の通行判断は自治体・道路管理者の発表に従ってください。</div>
+      <p class="hero-note">※ 水深の閾値と水害時画像は研修用の想定です。実際の通行判断は自治体・道路管理者の発表に従ってください。</p>
       <h2 class="start-q">エリアを選んでください</h2>
       <div class="area-pick">
         <button id="areaKyoto" type="button"><span><b>京都</b><small>洛西エリア・40か所</small></span></button>
@@ -363,63 +441,151 @@
     </div>
     <!-- エリアを選んだあとの見出し -->
     <div class="topbar" id="topbar">
-      <div class="tb-title">水害マップ<small>（研修用）</small></div>
+      <p class="tb-title">水害マップ<small>（研修用）</small></p>
       <button type="button" class="tb-btn" id="backArea" aria-label="エリアを選び直す"><b id="tbArea"></b><i>変える</i></button>
     </div>
-    <details class="howto">
-      <summary>使い方と雨量の目安</summary>
-      <p>エリアを選び、地図に今いる場所のピンを立てると、周辺のアンダーパスが表示されます。水深を変えると各地点の通行可否が変わり、地点をタップすると現地の写真と水害時のシミュレーション画像が見られます。水害時画像は、3段階（15cm程度／30cm程度／深い冠水）の画像を、想定水深に合わせて重ねながら切り替えます。地図上の🏢ピンは事業所です。</p>
-      <p>画面下のバーの再生ボタンを押すと、大雨シナリオ（研修用の想定）が自動で流れ、雨量・水深・地図・写真・3D表示が連動して変わります。雨量と水深は、画面下のバーのスライダーでいつでも変えられます。</p>
-      <p>💧 雨量の目安：時間雨量50mm級の非常に激しい雨が短時間に集中すると、アンダーパスは数十分で冠水し得ます（30mm/h級でも冠水が始まることがあります）。通行規制の雨量基準は箇所ごとに定められています。</p>
-    </details>
+    <!-- 使い方：開始画面ではここに、地図の画面ではページの下（データについての上）に置く -->
+    <div id="helpTop">
+      <details class="howto" id="howto">
+        <summary>使い方と雨量の目安</summary>
+        <p>エリアを選び、地図に今いる場所のピンを立てると、周辺のアンダーパスが表示されます。水深を変えると各地点の通行可否が変わり、地点をタップすると現地の写真と水害時のシミュレーション画像が見られます。水害時画像は、3段階（15cm程度／30cm程度／深い冠水）の画像を、想定水深に合わせて重ねながら切り替えます。地図上の🏢ピンは事業所です。</p>
+        <p>画面下のバーの再生ボタンを押すと、大雨シナリオ（研修用の想定）が自動で流れ、雨量・水深・地図・写真・3D表示が連動して変わります。雨量と水深は、画面下のバーのスライダーでいつでも変えられます。</p>
+        <p>💧 雨量の目安：時間雨量50mm級の非常に激しい雨が短時間に集中すると、アンダーパスは数十分で冠水し得ます（30mm/h級でも冠水が始まることがあります）。通行規制の雨量基準は箇所ごとに定められています。</p>
+      </details>
+    </div>
   </div>
   <svg class="hero-wave w1" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><path fill="#edf2f5" d="M0 22 Q75 4 150 22 T300 22 T450 22 T600 22 T750 22 T900 22 T1050 22 T1200 22 V40 H0Z"/></svg>
   <svg class="hero-wave w2" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><path fill="#edf2f5" d="M0 26 Q75 14 150 26 T300 26 T450 26 T600 26 T750 26 T900 26 T1050 26 T1200 26 V40 H0Z"/></svg>
 </header>
 
-<div class="wrap">
+<main class="wrap" id="main">
  <div class="layout">
 
+  <section class="stack c-map">
+    <div class="ask" id="ask">
+      <h2>あなたは今どこにいますか？</h2>
+      <p>地図をタップして、今いる場所にピンを立ててください。ピンを立てると、周辺のアンダーパスが表示されます。事業所（🏢）をタップすると、その場所にピンが立ちます。</p>
+      <button class="btn primary" id="gpsBtn" type="button">現在地にピンを立てる</button>
+      <p class="ask-msg" id="askMsg" role="status"></p>
+    </div>
+    <div class="mebar" id="mebar">
+      <div class="me-row">
+        <p class="me-place"><svg viewBox="0 0 32 40" aria-hidden="true"><path d="M16 39C16 39 3 24.5 3 15a13 13 0 1 1 26 0c0 9.5-13 24-13 24z" fill="#1d63d6"/><circle cx="16" cy="15" r="5" fill="#fff"/></svg><span id="meText"></span></p>
+        <button type="button" class="btn link" id="relocate">場所を選び直す</button>
+      </div>
+      <button type="button" class="next-btn" id="nearBtn" style="display:none;"><span id="nearText"></span></button>
+      <p class="me-hint" id="meHint"></p>
+    </div>
+    <div class="mapwrap">
+      <div id="map"><div id="mapNotice">地図を読み込んでいます…</div></div>
+      <canvas id="mapRain" aria-hidden="true"></canvas>
+      <div class="map-legend">
+        <span><i class="lg st-ok"></i>通行可</span>
+        <span><i class="lg st-warn"></i>注意</span>
+        <span><i class="lg st-bad"></i>通行不可</span>
+      </div>
+      <button id="fitBtn" class="btn map-btn" type="button">エリア全体を表示</button>
+    </div>
+
+    <div class="card" id="locTools">
+      <label class="lbl" for="addrInput">住所で探してピンを立てる</label>
+      <div class="addr-row">
+        <input type="text" id="addrInput" placeholder="住所を入力" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+        <button class="btn primary" id="addrBtn" type="button">検索</button>
+      </div>
+      <p class="sub" id="addrEx"></p>
+      <p class="sub" id="addrMsg" role="status"></p>
+      <p class="sub">ピンの位置は、このページを開いている間だけ端末の中で使い、保存しません。「現在地にピンを立てる」は、端末の位置情報の利用を許可した場合だけ動きます。住所の検索には国土地理院の住所検索APIを使います。</p>
+      <button class="btn" id="skipBtn" type="button">ピンを立てずに進む</button>
+    </div>
+  </section>
+
   <div class="colR">
+   <section class="stack c-side">
+    <div class="card" id="detail" style="display:none;">
+      <div class="d-head">
+        <h2 id="dName"></h2>
+        <span class="badge big" id="dBadge"></span>
+      </div>
+      <p class="status" id="dStatus"></p>
+      <div class="gauge" id="dGauge"></div>
+      <ul class="g-legend" id="dMarks"></ul>
+      <p class="sub">左から：注意 ／ 通行止め ／ 冠水（想定水位）</p>
+      <div class="photo-wrap">
+        <div class="photo-frame" id="dFrame" style="display:none;">
+          <img id="dPhoto" alt="">
+          <div class="ph-stack" id="dStack" aria-hidden="true"><img alt=""><img alt=""><img alt=""></div>
+          <div class="photo-overlay" id="dOverlay" style="display:none; height:58%;"><span class="ol-label">水位イメージ（模式表示）</span></div>
+          <div class="cmp-handle" id="dCmp"><i></i></div>
+          <span class="ph-tag l" id="dTagL">通常時</span>
+          <span class="ph-tag r" id="dTagR">水害時</span>
+        </div>
+        <div class="photo-none" id="dPhotoNone">現地写真は準備中です</div>
+        <div class="photo-toggle" role="group" aria-label="写真の切り替え">
+          <button type="button" class="seg on" id="btnBefore" aria-pressed="true">通常時</button>
+          <button type="button" class="seg" id="btnAfter" aria-pressed="false">水害時</button>
+          <button type="button" class="seg" id="btnCompare" aria-pressed="false">比べる</button>
+        </div>
+        <div class="credit" id="dCredit"></div>
+      </div>
+      <div class="meta" id="dMeta"></div>
+      <button type="button" class="btn link" id="to3d">この地点の想定値を3Dで見る</button>
+    </div>
+
+    <div class="card">
+      <div class="list-head">
+        <h2 class="lbl">地点一覧<small id="listOrder"></small></h2>
+        <div class="filters" id="filters" role="group" aria-label="地点の絞り込み">
+          <button type="button" class="seg on" data-f="all" aria-pressed="true">すべて<b id="fAll">0</b></button>
+          <button type="button" class="seg" data-f="warn" aria-pressed="false">注意<b id="fWarn">0</b></button>
+          <button type="button" class="seg" data-f="bad" aria-pressed="false">通行不可<b id="fBad">0</b></button>
+        </div>
+      </div>
+      <div id="siteList"></div>
+      <div id="listEmpty">この条件に当てはまる地点はありません。</div>
+      <button type="button" class="btn link list-more" id="listMore" style="display:none;"></button>
+    </div>
+   </section>
+
    <section class="stack c-ctrl">
-    <div class="card rise" style="animation-delay:.05s">
-      <div class="lbl">雨量シミュレーション（周辺道路への影響）</div>
+    <div class="card">
+      <h2 class="lbl">雨量シミュレーション（周辺道路への影響）</h2>
       <div class="slider-row">
         <input type="range" id="rain" min="0" max="60" step="1" value="0" aria-label="時間雨量（mm/h）">
         <div class="big-val"><span id="rainVal">0</span><small>mm/h</small></div>
       </div>
-      <div class="presets">
-        <button data-r="0">0mm（雨なし）</button>
-        <button data-r="15">15mm</button>
-        <button data-r="30">30mm</button>
-        <button data-r="50">50mm</button>
+      <div class="presets" role="group" aria-label="雨量の目安">
+        <button type="button" class="seg" data-r="0">0mm（雨なし）</button>
+        <button type="button" class="seg" data-r="15">15mm</button>
+        <button type="button" class="seg" data-r="30">30mm</button>
+        <button type="button" class="seg" data-r="50">50mm</button>
       </div>
-      <div class="counts">
-        <div class="count c-bad"><b id="nRoadBad">0</b>通行不可の区間</div>
-        <div class="count c-hard"><b id="nRoadHard">0</b>通行困難の区間</div>
-        <div class="count c-warn"><b id="nRoadWarn">0</b>注意の区間</div>
-      </div>
-      <div class="sub" id="rainDesc" style="margin-top:9px;"></div>
+      <p class="sub" id="rainDesc"></p>
+      <ul class="tally">
+        <li class="c-bad"><span>通行不可の区間</span><b id="nRoadBad">0</b></li>
+        <li class="c-hard"><span>通行困難の区間</span><b id="nRoadHard">0</b></li>
+        <li class="c-warn"><span>注意の区間</span><b id="nRoadWarn">0</b></li>
+      </ul>
       <div class="legend">
-        <span style="background:#fdeceb;color:#d64541;">通行不可</span>
-        <span style="background:#fdeadb;color:#b85c00;">通行困難</span>
-        <span style="background:#fdf3d7;color:#9a7600;">注意</span>
-        <span style="background:#edf1ee;color:#5a6b64;">影響が小さい目安</span>
+        <span class="c-bad">通行不可</span>
+        <span class="c-hard">通行困難</span>
+        <span class="c-warn">注意</span>
+        <span class="c-none">影響が小さい目安</span>
       </div>
-      <div class="disclaimer">この周辺道路表示は、標高データから推定した研修用の簡易シミュレーションです（相対的な危険度の目安）。実際の通行規制とは異なります。実際の訪問時は気象警報・自治体の情報・道路交通情報を必ず確認し、冠水した道路には進入しないでください。</div>
+      <p class="disclaimer">この周辺道路表示は、標高データから推定した研修用の簡易シミュレーションです（相対的な危険度の目安）。実際の通行規制とは異なります。実際の訪問時は気象警報・自治体の情報・道路交通情報を必ず確認し、冠水した道路には進入しないでください。</p>
     </div>
 
-    <div class="card rise" style="animation-delay:.1s">
-      <div class="lbl">想定する水深（アンダーパス最深部）</div>
+    <div class="card">
+      <h2 class="lbl">想定する水深（アンダーパス最深部）</h2>
       <div class="slider-row">
         <input type="range" id="depth" min="0" max="60" step="1" value="0" aria-label="想定する水深（cm）">
         <div class="big-val"><span id="depthVal">0</span><small>cm</small></div>
       </div>
-      <div class="presets">
-        <button data-d="0">0cm（平常）</button>
-        <button data-d="15">15cm（京都府の通行止め目安）</button>
-        <button data-d="30">30cm</button>
-        <button data-d="50">50cm</button>
+      <div class="presets" role="group" aria-label="水深の目安">
+        <button type="button" class="seg" data-d="0">0cm（平常）</button>
+        <button type="button" class="seg" data-d="15">15cm（京都府の通行止め目安）</button>
+        <button type="button" class="seg" data-d="30">30cm</button>
+        <button type="button" class="seg" data-d="50">50cm</button>
       </div>
       <div class="counts">
         <div class="count c-ok"><b id="nOk">0</b>通行可</div>
@@ -428,95 +594,12 @@
       </div>
     </div>
    </section>
-
-   <section class="stack c-side">
-    <div class="card" id="detail" style="display:none;">
-      <div class="d-head">
-        <div>
-          <h2 id="dName"></h2>
-          <div class="meta" id="dMeta"></div>
-        </div>
-        <span class="badge big" id="dBadge"></span>
-      </div>
-      <div class="photo-wrap">
-        <div class="photo-frame" id="dFrame" style="display:none;">
-          <img id="dPhoto" alt="">
-          <div class="ph-stack" id="dStack" aria-hidden="true"><img alt=""><img alt=""><img alt=""></div>
-          <div class="photo-overlay" id="dOverlay" style="display:none; height:58%;"><span class="ol-label">水位イメージ（模式表示）</span></div>
-          <div class="cmp-handle" id="dCmp"><i>‹›</i></div>
-          <span class="ph-tag l" id="dTagL">通常時</span>
-          <span class="ph-tag r" id="dTagR">水害時</span>
-        </div>
-        <div class="photo-none" id="dPhotoNone">現地写真は準備中です</div>
-        <div class="photo-toggle">
-          <button id="btnBefore" class="on">通常時</button>
-          <button id="btnAfter">水害時</button>
-          <button id="btnCompare">比べる</button>
-        </div>
-        <div class="credit" id="dCredit"></div>
-      </div>
-      <div class="gauge" id="dGauge"></div>
-      <div class="sub">左から：注意 ／ 通行止め ／ 冠水（想定水位）</div>
-      <div class="status" id="dStatus"></div>
-      <button class="link-btn" id="to3d">この地点の想定値を3Dで見る</button>
-    </div>
-
-    <div class="card rise" style="animation-delay:.2s">
-      <div class="list-head">
-        <div class="lbl">地点一覧<small id="listOrder"></small></div>
-        <div class="filters" id="filters">
-          <button data-f="all" class="on">すべて<b id="fAll">0</b></button>
-          <button data-f="warn">注意<b id="fWarn">0</b></button>
-          <button data-f="bad">通行不可<b id="fBad">0</b></button>
-        </div>
-      </div>
-      <div id="siteList"></div>
-      <div id="listEmpty">この条件に当てはまる地点はありません。</div>
-      <button type="button" class="list-more" id="listMore" style="display:none;"></button>
-    </div>
-   </section>
   </div>
 
-  <div class="colL">
-   <section class="stack c-map">
-    <div class="ask" id="ask">
-      <h2>あなたは今どこにいますか？</h2>
-      <p>地図をタップして、今いる場所にピンを立ててください。ピンを立てると、周辺のアンダーパスが表示されます。事業所（🏢）をタップすると、その場所にピンが立ちます。</p>
-      <p class="ask-msg" id="askMsg" role="status"></p>
-    </div>
-    <div class="mebar" id="mebar">
-      <span id="meText"></span>
-      <button type="button" id="relocate">場所を選び直す</button>
-    </div>
-    <div class="mapwrap rise" style="animation-delay:.12s">
-      <div id="map"><div id="mapNotice">地図を読み込んでいます…</div></div>
-      <canvas id="mapRain" aria-hidden="true"></canvas>
-      <div class="map-chip">
-        <span><i style="background:#14a06f"></i>通行可</span>
-        <span><i style="background:#e2a000"></i>注意</span>
-        <span><i style="background:#de4a44"></i>通行不可</span>
-        <button id="fitBtn" type="button">エリア全体を表示</button>
-      </div>
-    </div>
-
-    <div class="card" id="locTools">
-      <div class="loc-row">
-        <button class="addr-btn" id="gpsBtn" type="button">現在地にピンを立てる</button>
-        <button class="addr-btn ghost" id="skipBtn" type="button">ピンを立てずに進む</button>
-      </div>
-      <div class="lbl" style="margin-top:14px;">住所で探してピンを立てる</div>
-      <div class="addr-row">
-        <input type="text" id="addrInput" placeholder="住所を入力（例：京都市西京区上桂北村町167-2）" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
-        <button class="addr-btn" id="addrBtn" type="button">検索</button>
-      </div>
-      <div class="sub" id="addrMsg" style="margin-top:6px;" role="status"></div>
-      <div class="sub">ピンの位置は、このページを開いている間だけ端末の中で使い、保存しません。「現在地にピンを立てる」は、端末の位置情報の利用を許可した場合だけ動きます。住所の検索には国土地理院の住所検索APIを使います。</div>
-    </div>
-   </section>
-
+  <div class="colL2">
    <section class="stack c-q">
     <div class="card">
-      <div class="lbl">グループ討議の問い</div>
+      <h2 class="lbl">グループ討議の問い</h2>
       <ol class="q">
         <li>水深15cmで、あなたの担当エリアへの訪問ルートはどう変わりますか。</li>
         <li>通行不可の地点を迂回すると、どの利用者さんへの到着が最も遅れますか。</li>
@@ -526,22 +609,23 @@
    </section>
 
    <section class="stack c-3d">
-    <div class="card rise" id="card3d" style="animation-delay:.18s">
-      <div class="lbl">3Dで見る水深（アンダーパスの模式図）</div>
+    <div class="card" id="card3d">
+      <h2 class="lbl">3Dで見る水深（アンダーパスの模式図）</h2>
       <div class="stage3d" id="stage3d">
         <canvas id="c3d" tabindex="0" aria-label="アンダーパスの3D模式図。水深スライダーに連動して水位が変わります。"></canvas>
         <div class="v3-tag water R" id="v3Tag"><span>水深 0cm</span></div>
         <div class="v3-tag floor L" id="v3Floor"><span>床面 約30cm</span></div>
-        <div class="v3-hud tl"><span class="chip" id="v3Site">モデル地点</span><span class="chip" id="v3Legend">地点を選ぶと、その地点の想定値が壁のラインに出ます</span></div>
-        <div class="v3-hud br">
-          <button class="v3-btn on" data-view="near" type="button">近く</button>
-          <button class="v3-btn" data-view="side" type="button">真横</button>
-          <button class="v3-btn" data-view="wide" type="button">全景</button>
+        <div class="v3-hud tl"><span class="chip" id="v3Site">モデル地点</span></div>
+        <div class="v3-hud br" role="group" aria-label="3Dの見え方">
+          <button class="v3-btn on" data-view="near" type="button" aria-pressed="true">近く</button>
+          <button class="v3-btn" data-view="side" type="button" aria-pressed="false">真横</button>
+          <button class="v3-btn" data-view="wide" type="button" aria-pressed="false">全景</button>
           <button class="v3-btn sq" data-zoom="in" type="button" aria-label="拡大">＋</button>
           <button class="v3-btn sq" data-zoom="out" type="button" aria-label="縮小">－</button>
         </div>
         <div class="v3-load" id="v3Load">3D表示を読み込んでいます…</div>
       </div>
+      <p class="v3-legend" id="v3Legend">地点を選ぶと、その地点の想定値が壁のラインに出ます</p>
       <div class="imp-steps" id="impSteps">
         <div class="imp" data-k="0"><b>床面より下</b><span>〜約30cm</span></div>
         <div class="imp" data-k="1"><b>床面・ドア下端を超える</b><span>約30cm〜</span></div>
@@ -556,8 +640,9 @@
  </div>
 
  <div class="below">
-  <div class="card">
-    <div class="lbl">データについて</div>
+  <div id="helpBottom"></div>
+  <details class="card fold" id="notesBox">
+    <summary><h2 class="lbl">データについて</h2></summary>
     <ul class="notes">
       <li>収録地点：国土交通省 近畿地方整備局の冠水想定箇所リストと京都市公式資料「アンダーパス一覧表」（令和4年8月）に基づく洛西エリアの40か所と、鹿児島市の公式リスト「鹿児島市内の冠水想定箇所」に基づく鹿児島エリアの8か所と、国土交通省 九州地方整備局『道路防災情報Webマップ』冠水想定箇所（個別箇所説明表）に基づく都城エリア（都城市・三股町）の8か所で、合計56か所です。なお山之口アンダー（都城市）は、わんだ荘から約10.8kmと他の地点より少し離れていますが、都城市の公式リストの地点として収録しています。なお市の資料の「上鳥羽南部緯15号線×国道1号」は、近畿地整リストの「区画道路E109号×国道1号」と同一箇所の可能性があります（要現地確認のため1か所として収録）。</li>
       <li>ピンの位置は、地図データ（OpenStreetMap）の線路・道路の実形状から交差位置を計算して置いています（「交差位置確認」、誤差は数m〜数十mの目安）。一部の地点は「推定」表示で、100m以上の誤差がありうるため、研修前の現地確認をおすすめします。</li>
@@ -572,25 +657,23 @@
       <li>水害時の画像は、3段階（水深15cm程度／30cm程度／深い冠水）の画像を、想定水深に合わせて重ねながら切り替えて表示します。段階の途中の水深では前後2枚が重なった表示になり、その水深の様子を正確に描いたものではありません（研修用の演出です）。</li>
       <li>「今いる場所」のピンは、地図のタップ、事業所ピンのタップ、端末の現在地（利用を許可した場合のみ）、住所検索のいずれかで立てます。ピンの位置はこのページを開いている間だけ端末の中で使い、保存や外部への送信はしません（住所検索で入力した住所は、国土地理院の住所検索APIに送られます）。地点一覧の「直線で約◯km」は、ピンから各地点までの直線距離の目安で、道のりの距離ではありません。</li>
     </ul>
-  </div>
+  </details>
  </div>
-</div>
+</main>
 
 <div class="dock" id="dock">
   <div class="dock-prog"><i id="scnBar"></i></div>
   <div class="dock-in">
     <button class="play" id="scnPlay" type="button" aria-label="大雨シナリオを再生">
-      <svg id="icPlay" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      <svg id="icPlay" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
     </button>
-    <div class="dock-pill" id="dockPill">雨量 0mm/h ・ 水深 0cm</div>
-    <div class="dock-main">
-      <div class="dock-cap"><b id="scnClock">大雨シナリオ</b><span id="scnCap">再生すると、降り始めから60分間の想定を約30秒で流します。</span></div>
-      <div class="dock-sl">
-        <label>雨量<input type="range" id="dockRain" min="0" max="60" step="1" value="0" aria-label="時間雨量（mm/h）"><output><span id="dockRainVal">0</span> mm/h</output></label>
-        <label>水深<input type="range" id="dockDepth" min="0" max="60" step="1" value="0" aria-label="想定する水深（cm）"><output><span id="dockDepthVal">0</span> cm</output></label>
-      </div>
+    <p class="dock-cap"><b id="scnClock">大雨シナリオ</b><span id="scnCap" aria-live="polite">再生すると、降り始めから60分間の想定を約30秒で流します。</span></p>
+    <p class="dock-pill"><b>大雨シナリオ</b><span id="dockPill">雨量 0mm/h ・ 水深 0cm</span></p>
+    <div class="dock-sl">
+      <label>雨量<input type="range" id="dockRain" min="0" max="60" step="1" value="0" aria-label="時間雨量（mm/h）"><output><span id="dockRainVal">0</span> mm/h</output></label>
+      <label>水深<input type="range" id="dockDepth" min="0" max="60" step="1" value="0" aria-label="想定する水深（cm）"><output><span id="dockDepthVal">0</span> cm</output></label>
     </div>
-    <button class="dock-min" id="dockMin" type="button" aria-label="操作バーをたたむ">▾</button>
+    <button class="dock-min" id="dockMin" type="button" aria-expanded="true" aria-controls="dock">たたむ</button>
   </div>
 </div>
 
@@ -677,7 +760,13 @@ function $(id){ return document.getElementById(id); }
 function escHtml(t){ return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function areaSites(){ return SITES.filter(function(s){ return s.area===area; }); }
 function statusOf(s){ if(state.depth>=s.close) return "bad"; if(state.depth>=s.caution) return "warn"; return "ok"; }
-function colorOf(st){ return st==="bad" ? "#de4a44" : st==="warn" ? "#e2a000" : "#14a06f"; }
+/* 色は head.html の :root で決めた値を読み、ピン・道路・ゲージ・文字で同じものを使う */
+var CSSV = window.getComputedStyle ? getComputedStyle(document.documentElement) : null;
+function tok(name, fallback){ var v = CSSV ? (CSSV.getPropertyValue(name) || "").replace(/^\s+|\s+$/g, "") : ""; return v || fallback; }
+var COL = { ok:tok("--ok","#14a06f"), warn:tok("--warn","#e2a000"), hard:tok("--hard","#e8720c"), bad:tok("--bad","#de4a44"), deep:tok("--deep","#a8262b"),
+            okInk:tok("--ok-ink","#0a7450"), warnInk:tok("--warn-ink","#7a5d00"), badInk:tok("--bad-ink","#b3261e") };
+function colorOf(st){ return st==="bad" ? COL.bad : st==="warn" ? COL.warn : COL.ok; }          /* 塗りの色 */
+function inkOf(st){ return st==="bad" ? COL.badInk : st==="warn" ? COL.warnInk : COL.okInk; }   /* 文字の色（白地で読める濃さ） */
 function labelOf(st){ return st==="bad" ? "通行不可" : st==="warn" ? "注意" : "通行可"; }
 
 /* 数字をなめらかに切り替える */
@@ -700,7 +789,10 @@ function setNum(id, to){
 function syncRange(el){ var mn = +el.min, mx = +el.max; el.style.setProperty("--p", ((+el.value-mn)/(mx-mn)*100)+"%"); }
 function markPresets(sel, attr, v){
   var list = document.querySelectorAll(sel);
-  for(var i=0;i<list.length;i++){ list[i].classList.toggle("on", parseInt(list[i].getAttribute(attr),10)===v); }
+  for(var i=0;i<list.length;i++){
+    var on = parseInt(list[i].getAttribute(attr),10)===v;
+    list[i].classList.toggle("on", on); list[i].setAttribute("aria-pressed", on ? "true" : "false");
+  }
 }
 
 /* ===================== 地図 ===================== */
@@ -718,10 +810,18 @@ var tileLayer = null;
 var styleReady = false;
 var mapTouched = false;
 
+/* 地図の表示範囲。"all"＝エリア全体、"near"＝今いる場所と近い地点（スマホでピンを立てた直後） */
+var fitMode = "all", FIT_NEAR = 8;
 function fitArea(animate){
   if(!map) return;
   var sz = map.getSize(); if(sz.x < 60 || sz.y < 60) return;   /* 地図が隠れている間は合わせない */
-  var b = L.latLngBounds(areaSites().map(function(s){ return [s.lat, s.lng]; }));
+  var list = areaSites();
+  if(fitMode === "near" && me){
+    /* 一覧の最初に出す近い地点と同じ範囲を見せる（ピンが重ならず、押しやすい） */
+    list = list.map(function(s){ return { s:s, k:distKm(me.lat, me.lng, s.lat, s.lng) }; })
+               .sort(function(a, b){ return a.k - b.k; }).slice(0, FIT_NEAR).map(function(o){ return o.s; });
+  }
+  var b = L.latLngBounds(list.map(function(s){ return [s.lat, s.lng]; }));
   if(me) b.extend([me.lat, me.lng]);
   if(animate && !REDUCED) map.flyToBounds(b, { padding:[34,34], duration:0.9 });
   else map.fitBounds(b, { padding:[34,34] });
@@ -786,6 +886,7 @@ function initMap(idx){
     clickTimer = setTimeout(function(){ tryPlace(ll.lat, ll.lng, "地図で選んだ場所"); }, 260);
   });
   map.on("dblclick", function(){ clearTimeout(clickTimer); });
+  map.on("zoomend", restyleRoadsForZoom);
   styleReady = true;
   fitArea(); renderOffices();
   if(step === "main"){ buildMarkers(false); buildRoads(); }
@@ -807,7 +908,7 @@ if(typeof L === "undefined"){
 } else { bootMap(); }
 window.addEventListener("orientationchange", function(){ setTimeout(function(){ if(map) map.invalidateSize(); }, 300); });
 window.addEventListener("resize", function(){ if(map) map.invalidateSize(); });
-$("fitBtn").addEventListener("click", function(){ mapTouched = false; fitArea(true); });
+$("fitBtn").addEventListener("click", function(){ mapTouched = false; fitMode = "all"; fitArea(true); });
 
 /* ----- 地点ピン（作り直さず、色だけ切り替える） ----- */
 var markers = [];
@@ -824,7 +925,7 @@ function buildMarkers(pop){
     var html = '<div class="pin-pop' + (go ? ' go" style="animation-delay:' + Math.min(1000, 150 + i*28) + 'ms' : '') + '">' +
                '<div class="' + pinClass(statusOf(s), current===s) + '"><i></i></div></div>';
     var mk = L.marker([s.lat, s.lng], { title: s.name, riseOnHover: true,
-      icon: L.divIcon({ className:"pin-icon", html:html, iconSize:[30,30], iconAnchor:[15,15] }) }).addTo(map);
+      icon: L.divIcon({ className:"pin-icon", html:html, iconSize:[36,36], iconAnchor:[18,18] }) }).addTo(map);
     mk.on("click", function(){ showDetail(s); });
     var el = mk.getElement();
     markers.push({ s:s, mk:mk, pin: el ? el.querySelector(".pin") : null });
@@ -849,14 +950,17 @@ function roadClass(lv, rain){
   if(rain>=15) return lv==="A" ? "warn" : "gray";
   return "gray";
 }
+/* 地図の縮尺の段階（0＝広い範囲、1＝中くらい、2＝近く）。広い範囲では線を細くする */
+function roadZoomBand(){ var z = map ? map.getZoom() : 12; return z >= 15 ? 2 : z >= 13 ? 1 : 0; }
 function roadStyle(cls){
-  if(cls==="bad") return { color:"#d64541", weight:4, opacity:0.95, lineCap:"round", lineJoin:"round" };
-  if(cls==="hard") return { color:"#e8720c", weight:3.5, opacity:0.95, lineCap:"round", lineJoin:"round" };
-  if(cls==="warn") return { color:"#e0a100", weight:3, opacity:0.9, lineCap:"round", lineJoin:"round" };
-  return { color:"#9fb0a8", weight:2, opacity:0.45, lineCap:"round", lineJoin:"round" };
+  var k = [0.55, 0.8, 1][roadZoomBand()];
+  if(cls==="bad") return { color:COL.bad, weight:4*k, opacity:0.85, lineCap:"round", lineJoin:"round" };
+  if(cls==="hard") return { color:COL.hard, weight:3.5*k, opacity:0.85, lineCap:"round", lineJoin:"round" };
+  if(cls==="warn") return { color:COL.warn, weight:3*k, opacity:0.85, lineCap:"round", lineJoin:"round" };
+  return { color:"#8b9aa3", weight:Math.max(1.2, 2*k), opacity:0.45, lineCap:"round", lineJoin:"round" };
 }
 function rainBand(r){ return r>=50 ? 3 : r>=30 ? 2 : r>=15 ? 1 : 0; }
-var roadsLayer = null, roadRenderer = null, roadTally = { A:0, B:0, C:0, D:0 }, roadBandDrawn = -1;
+var roadsLayer = null, roadRenderer = null, roadTally = { A:0, B:0, C:0, D:0 }, roadBandDrawn = -1, roadZoomDrawn = -1;
 var LV_ORDER = { D:0, C:1, B:2, A:3 };
 function tallyRoads(){
   roadTally = { A:0, B:0, C:0, D:0 };
@@ -892,12 +996,17 @@ function buildRoads(){
   var opt = { interactive:false, style: roadFeatureStyle };
   try{ if(!roadRenderer) roadRenderer = L.canvas({ padding:0.4 }); opt.renderer = roadRenderer; }catch(e){}
   roadsLayer = L.geoJSON({ type:"FeatureCollection", features:feats }, opt).addTo(map);
-  roadBandDrawn = rainBand(state.rain);
+  roadBandDrawn = rainBand(state.rain); roadZoomDrawn = roadZoomBand();
 }
 function restyleRoads(){
   updateRoadCounts();
   var b = rainBand(state.rain);
   if(roadsLayer && b !== roadBandDrawn){ roadsLayer.setStyle(roadFeatureStyle); roadBandDrawn = b; }
+}
+/* 拡大・縮小で縮尺の段階が変わったら、線の太さを引き直す */
+function restyleRoadsForZoom(){
+  var z = roadZoomBand();
+  if(roadsLayer && z !== roadZoomDrawn){ roadsLayer.setStyle(roadFeatureStyle); roadZoomDrawn = z; }
 }
 function rainDescText(r){
   if(r>=50) return "時間雨量50mm級：最も低い区間（A）は通行不可、Bは通行困難、Cも注意が必要です。アンダーパス周辺の広い範囲で移動が難しくなる想定です。";
@@ -998,10 +1107,11 @@ function tryPlace(lat, lng, label){
   me = { lat:lat, lng:lng, label:label };
   if(map){
     meMarker = L.marker([lat, lng], { zIndexOffset: 2000, icon: L.divIcon({ className:"pin-icon",
-      html:'<div class="me-pin"><i></i><span>📍</span></div>', iconSize:[40,40], iconAnchor:[20,36] }) }).addTo(map);
+      html:'<div class="me-pin"><i></i><svg viewBox="0 0 32 40" aria-hidden="true"><path d="M16 39C16 39 3 24.5 3 15a13 13 0 1 1 26 0c0 9.5-13 24-13 24z" fill="' + tok("--base","#1d63d6") + '" stroke="#fff" stroke-width="2.5"/><circle cx="16" cy="15" r="5" fill="#fff"/></svg></div>',
+      iconSize:[40,48], iconAnchor:[20,44] }) }).addTo(map);
     meMarker.on("click", function(){
       if(!me) return;
-      L.popup({ offset:[0,-30] }).setLatLng([me.lat, me.lng])
+      L.popup({ offset:[0,-40] }).setLatLng([me.lat, me.lng])
         .setContent('<div class="pop"><b>今いる場所</b><br>' + escHtml(me.label) + "</div>").openOn(map);
     });
   }
@@ -1057,9 +1167,11 @@ function buildList(){
   arr.forEach(function(o){
     var s = o.s;
     var row = document.createElement("button"); row.className = "site"; row.type = "button";
-    row.innerHTML = '<span class="dot"></span><span><span class="nm"></span><span class="meta"></span></span><span class="badge"></span>';
+    row.innerHTML = '<span class="dot"></span><span><span class="nm"></span><span class="meta m-short"></span><span class="meta m-full"></span></span><span class="badge"></span>';
     row.querySelector(".nm").textContent = s.name;
-    row.querySelector(".meta").textContent = (me ? "直線で" + distText(o.k) + "／" : "") + s.road + " × " + s.cross + "／位置：" + s.pos + "／写真：" + (s.photo ? "あり" : "準備中");
+    var dist = me ? "直線で" + distText(o.k) + "／" : "";
+    row.querySelector(".m-short").textContent = dist + s.road + (s.photo ? "" : "／写真：準備中") + (s.pos.indexOf("推定")===0 ? "／位置：" + s.pos : "");
+    row.querySelector(".m-full").textContent = dist + s.road + " × " + s.cross + "／位置：" + s.pos + "／写真：" + (s.photo ? "あり" : "準備中");
     row.addEventListener("click", function(){ if(map){ mapTouched = true; map.flyTo([s.lat, s.lng], 13.5); } showDetail(s); });
     list.appendChild(row);
     rows.push({ s:s, el:row, dot:row.querySelector(".dot"), badge:row.querySelector(".badge"), st:null });
@@ -1068,7 +1180,7 @@ function buildList(){
 }
 /* スマホ幅では、絞り込みなしのとき最初の LIST_HEAD か所だけ出し、残りはボタンで開く */
 var LIST_HEAD = 8, listOpen = false;
-function listNarrow(){ return !(window.matchMedia && window.matchMedia("(min-width:1080px)").matches); }
+function listNarrow(){ return !(window.matchMedia && window.matchMedia("(min-width:900px)").matches); }
 function updateList(){
   var n = { ok:0, warn:0, bad:0 }, shown = 0, folded = 0;
   var fold = (!listOpen && listFilter==="all" && listNarrow() && rows.length > LIST_HEAD + 2);
@@ -1081,8 +1193,8 @@ function updateList(){
     r.el.classList.toggle("cur", current===r.s);
   });
   var more = $("listMore");
-  if(fold && folded){ more.style.display = "block"; more.textContent = "残り" + folded + "か所も表示する"; }
-  else if(listOpen && listFilter==="all" && listNarrow() && rows.length > LIST_HEAD + 2){ more.style.display = "block"; more.textContent = "一覧をたたむ"; }
+  if(fold && folded){ more.style.display = ""; more.textContent = "残り" + folded + "か所も表示する"; }
+  else if(listOpen && listFilter==="all" && listNarrow() && rows.length > LIST_HEAD + 2){ more.style.display = ""; more.textContent = "一覧をたたむ"; }
   else { more.style.display = "none"; }
   setNum("nOk", n.ok); setNum("nWarn", n.warn); setNum("nBad", n.bad);
   $("fAll").textContent = rows.length; $("fWarn").textContent = n.warn; $("fBad").textContent = n.bad;
@@ -1094,7 +1206,7 @@ for(var fi=0; fi<filterBtns.length; fi++){
   (function(btn){
     btn.addEventListener("click", function(){
       listFilter = btn.getAttribute("data-f");
-      for(var j=0;j<filterBtns.length;j++) filterBtns[j].classList.toggle("on", filterBtns[j]===btn);
+      for(var j=0;j<filterBtns.length;j++){ filterBtns[j].classList.toggle("on", filterBtns[j]===btn); filterBtns[j].setAttribute("aria-pressed", filterBtns[j]===btn ? "true" : "false"); }
       updateList();
     });
   })(filterBtns[fi]);
@@ -1155,9 +1267,9 @@ function refreshPhoto(){
   /* タブを押していない間は、水深0cmなら通常時、水深が上がれば水害時を自動で表示する */
   var mode = photoPinned ? photoMode : ((d > 0 && (s.photo || s.sim)) ? "after" : "before");
   if(mode==="compare" && !canCompare) mode = "after";
-  bB.classList.toggle("on", mode==="before");
-  bA.classList.toggle("on", mode==="after");
-  bC.classList.toggle("on", mode==="compare");
+  [[bB, "before"], [bA, "after"], [bC, "compare"]].forEach(function(p){
+    p[0].classList.toggle("on", mode===p[1]); p[0].setAttribute("aria-pressed", mode===p[1] ? "true" : "false");
+  });
   bA.disabled = !(s.photo || s.sim);
   bC.disabled = !canCompare;
   ov.style.display = "none";
@@ -1216,7 +1328,7 @@ function refreshPhoto(){
   var st = statusOf(s);
   var el = $("dStatus");
   el.textContent = "現在の想定水深 " + state.depth + "cm → " + labelOf(st);
-  el.style.color = colorOf(st);
+  el.style.color = inkOf(st);
   var bd = $("dBadge"); bd.textContent = labelOf(st); bd.className = "badge big b-" + st;
   var nowEl = document.querySelector("#dGauge .now");
   if(nowEl){ var mx = Math.max(70, s.full + 5); nowEl.style.left = (state.depth / mx * 100) + "%"; }
@@ -1259,19 +1371,28 @@ function showDetail(s){
   var max = Math.max(70, s.full+5);
   function pct(v){ return (v/max*100)+"%"; }
   /* ゲージの色分けを、この地点の想定値（注意／通行止め／冠水）に合わせる */
-  g.style.background = "linear-gradient(90deg,#14a06f 0," + "#14a06f " + pct(s.caution) + ",#e2a000 " + pct(s.caution) + ",#e2a000 " + pct(s.close) +
-    ",#de4a44 " + pct(s.close) + ",#de4a44 " + pct(s.full) + ",#a8262b " + pct(s.full) + ",#a8262b 100%)";
+  g.style.background = "linear-gradient(90deg," + COL.ok + " 0," + COL.ok + " " + pct(s.caution) + "," + COL.warn + " " + pct(s.caution) + "," + COL.warn + " " + pct(s.close) +
+    "," + COL.bad + " " + pct(s.close) + "," + COL.bad + " " + pct(s.full) + "," + COL.deep + " " + pct(s.full) + "," + COL.deep + " 100%)";
   g.innerHTML =
     '<span class="tick" style="left:'+pct(s.caution)+'"></span><span class="tick" style="left:'+pct(s.close)+'"></span><span class="tick" style="left:'+pct(s.full)+'"></span>' +
-    '<span class="mark m1" style="left:'+pct(s.caution)+'">注意 '+s.caution+'cm</span>' +
-    '<span class="mark m2" style="left:'+pct(s.close)+'">通行止め '+s.close+'cm</span>' +
-    '<span class="mark m3" style="left:'+pct(s.full)+'">冠水 '+s.full+'cm</span>' +
     '<span class="now" style="left:'+pct(state.depth)+'"></span>';
+  /* 想定値は、ゲージの色と対応させて下に並べる（文字が小さくならないように） */
+  $("dMarks").innerHTML =
+    '<li><i style="background:' + COL.warn + '"></i>注意 '+s.caution+'cm</li>' +
+    '<li><i style="background:' + COL.bad + '"></i>通行止め '+s.close+'cm</li>' +
+    '<li><i style="background:' + COL.deep + '"></i>冠水 '+s.full+'cm</li>';
   refreshPhoto();
   updateMarkers(); updateList(); emit();
-  $("detail").scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block:"nearest" });
+  showCard($("detail"));
 }
-$("to3d").addEventListener("click", function(){ $("card3d").scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block:"center" }); });
+/* カードを、下のバーに隠れない位置まで動かす。もう見えているときは動かさない */
+function showCard(el){
+  var r = el.getBoundingClientRect(), dock = $("dock").getBoundingClientRect();
+  var bottom = (dock.height > 0 ? dock.top : window.innerHeight) - 12;
+  if(r.top >= 8 && r.bottom <= bottom) return;
+  el.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: (r.height > bottom - 12) ? "start" : "nearest" });
+}
+$("to3d").addEventListener("click", function(){ $("card3d").scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block:"start" }); });
 
 /* ===================== 車への影響（3Dカードの説明） ===================== */
 function updateImpact(){
@@ -1329,7 +1450,17 @@ function updatePill(){ $("dockPill").textContent = "雨量 " + state.rain + "mm/
 /* ===================== 画面の流れ：エリア選択 → 今いる場所 → 本編 ===================== */
 var step = "area";
 var AREA_NAME = { kyoto:"京都（洛西エリア）", kagoshima:"鹿児島", miyakonojo:"宮崎（都城エリア）" };
-function setStep(st){ step = st; document.body.setAttribute("data-step", st); }
+function setStep(st){
+  step = st; document.body.setAttribute("data-step", st);
+  /* 「使い方」は閉じた状態にして、開始画面では上、地図の画面ではページの下に置く */
+  var h = $("howto"), slot = $(st === "area" ? "helpTop" : "helpBottom");
+  h.open = false; if(h.parentNode !== slot) slot.appendChild(h);
+}
+/* 住所欄の例は、そのエリアの事業所の住所を使う */
+function addrExample(){
+  for(var i=0;i<OFFICES.length;i++){ if(OFFICES[i].area === area) return OFFICES[i].addr; }
+  return "";
+}
 /* アンダーパスのピン・周辺道路・一覧を消す（ピンを立てる前の状態に戻す） */
 function clearSites(){
   markers.forEach(function(m){ m.mk.remove(); }); markers = [];
@@ -1356,24 +1487,36 @@ function goLocate(a){
   clearTimeout(clickTimer); placing = false;
   resetSim(); clearSites(); clearMe();
   $("tbArea").textContent = AREA_NAME[area];
+  var ex = addrExample(); $("addrEx").textContent = ex ? "例：" + ex : "";
   locMsg("");
   setStep("locate"); window.scrollTo(0, 0);
   ensureMap();
+  fitMode = "all";
   if(map){ if(map.closePopup) map.closePopup(); map.invalidateSize(); mapTouched = false; fitArea(); renderOffices(); }
   emit();
 }
+var nearest = null;
 function updateMeBar(){
-  var t = $("meText"), b = $("relocate");
+  var b = $("relocate"), nb = $("nearBtn");
+  nearest = me ? nearestSite(me.lat, me.lng) : null;
   if(me){
-    var near = nearestSite(me.lat, me.lng);
-    t.innerHTML = "📍 今いる場所：" + escHtml(me.label) +
-      (near ? "<small>いちばん近い地点：" + escHtml(near.s.name) + "（直線で" + distText(near.k) + "）</small>" : "");
+    $("meText").textContent = "今いる場所：" + me.label;
     b.textContent = "場所を選び直す";
   } else {
-    t.innerHTML = "📍 今いる場所：まだ選んでいません<small>ピンを立てると、近い順に地点を並べます。</small>";
+    $("meText").textContent = "今いる場所：まだ選んでいません";
     b.textContent = "ピンを立てる";
   }
+  /* 次にすること：いちばん近い地点を、押してそのまま開けるようにする */
+  if(nearest){
+    $("nearText").innerHTML = "いちばん近い地点を見る<small>" + escHtml(nearest.s.name) + "（直線で" + distText(nearest.k) + "）</small>";
+    nb.style.display = "";
+    $("meHint").textContent = "地図のピンか、下の一覧からも地点を選べます。";
+  } else {
+    nb.style.display = "none";
+    $("meHint").textContent = "地図のピンか、下の一覧から地点を選んでください。ピンを立てると、近い順に地点を並べます。";
+  }
 }
+$("nearBtn").addEventListener("click", function(){ if(nearest) showDetail(nearest.s); });
 /* ピンが立ったら（または立てずに進んだら）、アンダーパスを表示して本編へ */
 function reveal(){
   if(step !== "locate") return;
@@ -1383,6 +1526,8 @@ function reveal(){
   updateMeBar();
   if(map) map.invalidateSize();
   buildMarkers(true); buildRoads(); buildList();
+  /* スマホでは、まず今いる場所と近い地点が見える範囲にする（全体は「エリア全体を表示」で見られる） */
+  fitMode = (me && listNarrow()) ? "near" : "all";
   if(map){ mapTouched = false; fitArea(true); }
   /* 画面の切り替えで地図の位置がずれないよう、スクロール位置を合わせる */
   var y1 = mapEl.getBoundingClientRect().top;
@@ -1444,6 +1589,7 @@ function scnTick(ts){
   SCN.raf = requestAnimationFrame(scnTick);
 }
 function scnPlay(){
+  setDockMin(false);   /* 説明を読めるよう、再生するときはバーを開く */
   /* 「通常時」に固定していても、再生を始めたら写真を水深に連動させる */
   if(photoPinned && photoMode === "before"){ photoPinned = false; if(current) refreshPhoto(); }
   if(SCN.t >= 1) SCN.t = 0;
@@ -1456,11 +1602,21 @@ function scnPause(){
   $("scnCap").textContent = "一時停止中。スライダーで自由に変えられます（再生ボタンで続きから）。";
 }
 $("scnPlay").addEventListener("click", function(){ if(SCN.playing) scnPause(); else scnPlay(); });
-$("dockMin").addEventListener("click", function(){
-  var d = $("dock"), min = d.classList.toggle("min");
-  $("dockMin").textContent = min ? "▴" : "▾";
-  $("dockMin").setAttribute("aria-label", min ? "操作バーをひらく" : "操作バーをたたむ");
-});
+function setDockMin(min){
+  var d = $("dock"), b = $("dockMin");
+  d.classList.toggle("min", !!min);
+  b.textContent = min ? "ひらく" : "たたむ";
+  b.setAttribute("aria-expanded", min ? "false" : "true");
+  b.setAttribute("aria-label", min ? "操作バーをひらく（説明とスライダーを表示）" : "操作バーをたたむ");
+}
+$("dockMin").addEventListener("click", function(){ setDockMin(!$("dock").classList.contains("min")); });
+/* バーの高さを CSS に伝える（ページ下の余白と、カードを動かすときの止まる位置に使う） */
+function syncDockH(){
+  var h = $("dock").getBoundingClientRect().height;
+  if(h > 0) document.documentElement.style.setProperty("--dockH", Math.round(h) + "px");
+}
+if("ResizeObserver" in window){ new ResizeObserver(syncDockH).observe($("dock")); }
+window.addEventListener("resize", syncDockH);
 
 /* ===================== iPhone・ホーム画面から開いたときの調整 ===================== */
 (function(){
@@ -1484,6 +1640,10 @@ markPresets("[data-d]", "data-d", 0); markPresets("[data-r]", "data-r", 0);
 $("rainDesc").textContent = rainDescText(0);
 updateImpact(); updatePill();
 tallyRoads(); updateRoadCounts();
+/* スマホでは、地図と一覧を広く見せるため、下のバーをたたんだ状態から始める */
+setDockMin(!!(window.matchMedia && window.matchMedia("(max-width:600px)").matches));
+/* 「データについて」は、広い画面では開いた状態、スマホではたたんだ状態から始める */
+if(window.matchMedia && window.matchMedia("(min-width:900px)").matches) $("notesBox").open = true;
 setStep("area");
 /* 3D用のスクリプト自体が動かない古いブラウザでは、案内に切り替える（通常の読み込み失敗は3D側で処理する） */
 setTimeout(function(){
@@ -1517,12 +1677,22 @@ setTimeout(function(){
     if(i >= URLS.length) return Promise.reject(new Error("three.js を読み込めません"));
     return import(URLS[i]).catch(function(){ return load(i + 1); });
   }
-  var slow = setTimeout(fail, 30000);
-  load(0).then(function(T){
-    clearTimeout(slow);
-    try{ start(T); started = true; stage.classList.remove("fail"); }
-    catch(e){ if(window.console) console.error(e); fail(); }
-  }, function(){ clearTimeout(slow); fail(); });
+  var begun = false;
+  function begin(){
+    if(begun) return; begun = true;
+    var slow = setTimeout(fail, 30000);
+    load(0).then(function(T){
+      clearTimeout(slow);
+      try{ start(T); started = true; stage.classList.remove("fail"); }
+      catch(e){ if(window.console) console.error(e); fail(); }
+    }, function(){ clearTimeout(slow); fail(); });
+  }
+  if("IntersectionObserver" in window){
+    var near = new IntersectionObserver(function(es){
+      if(es[0].isIntersecting){ near.disconnect(); begin(); }
+    }, { rootMargin: "900px 0px" });
+    near.observe(stage);
+  } else { begin(); }
 
   function start(THREE){
     var REDUCED = !!app.reduced;
@@ -1710,7 +1880,7 @@ setTimeout(function(){
     var staff = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 1.5), new THREE.MeshStandardMaterial({ map: staffTex, roughness: 0.7 }));
     staff.position.set(6.3, 0.75 + roadY(6.3), -3.585); add(staff, false, true);
     function mkLine(hex){ var m = new THREE.Mesh(new THREE.BoxGeometry(11.8, 0.03, 0.02), new THREE.MeshBasicMaterial({ color: hex })); m.position.set(0.1, 0, -3.585); m.visible = false; world.add(m); return m; }
-    var lineC = mkLine(0xf2c230), lineK = mkLine(0xe8590c), lineF = mkLine(0xc0262d);
+    var lineC = mkLine(0xe2a000), lineK = mkLine(0xde4a44), lineF = mkLine(0xa8262b);   /* 注意／通行止め／冠水（ゲージと同じ色） */
 
     var ledCv = document.createElement("canvas"); ledCv.width = 512; ledCv.height = 192;
     var ledCtx = ledCv.getContext("2d"), ledTex = new THREE.CanvasTexture(ledCv); ledTex.colorSpace = THREE.SRGBColorSpace;
@@ -1902,7 +2072,7 @@ setTimeout(function(){
       goal = { theta: v.theta, phi: v.phi, r: v.r * fit, tx: v.tx, ty: v.ty, tz: v.tz };
       if(instant) cam = { theta: goal.theta, phi: goal.phi, r: goal.r, tx: goal.tx, ty: goal.ty, tz: goal.tz };
       var btns = stage.querySelectorAll("[data-view]");
-      for(var i = 0; i < btns.length; i++) btns[i].classList.toggle("on", btns[i].getAttribute("data-view") === key);
+      for(var i = 0; i < btns.length; i++){ var on = btns[i].getAttribute("data-view") === key; btns[i].classList.toggle("on", on); btns[i].setAttribute("aria-pressed", on ? "true" : "false"); }
     }
     function resize(){
       var r = stage.getBoundingClientRect(); W = Math.max(1, r.width); H = Math.max(1, r.height);
@@ -1968,7 +2138,7 @@ setTimeout(function(){
         if(s){
           lineC.position.y = s.caution / 100; lineK.position.y = s.close / 100; lineF.position.y = s.full / 100;
           siteEl.textContent = s.name + " の想定値で表示中";
-          legendEl.innerHTML = '<i style="background:#f2c230"></i>注意 ' + s.caution + 'cm<i style="background:#e8590c"></i>通行止め ' + s.close + 'cm<i style="background:#c0262d"></i>冠水 ' + s.full + 'cm';
+          legendEl.innerHTML = '<span><i style="background:#e2a000"></i>注意 ' + s.caution + 'cm</span><span><i style="background:#de4a44"></i>通行止め ' + s.close + 'cm</span><span><i style="background:#a8262b"></i>冠水 ' + s.full + 'cm</span>';
         } else {
           siteEl.textContent = "モデル地点（地点未選択）";
           legendEl.textContent = "地点を選ぶと、その地点の想定値が壁のラインに出ます";
@@ -1991,15 +2161,17 @@ setTimeout(function(){
     var SKY_TOP = [new THREE.Color(0x6fa9e0), new THREE.Color(0x55626d)], SKY_BOT = [new THREE.Color(0xdcebf5), new THREE.Color(0x9da7ad)];
     var W_DEEP = [new THREE.Color(0x1d6a93), new THREE.Color(0x4a5f55)], W_SHAL = [new THREE.Color(0x7fc4dc), new THREE.Color(0x98a48c)];
     var ROAD_C = [new THREE.Color(0x3f4245), new THREE.Color(0x25272a)];
+    var TAG_H = 32;   /* ラベル1つぶんの高さ（重なりの判定に使う） */
     function place(el, x, y, z, prefer){
       v3.set(x, y, z).project(camera);
       var sx = (v3.x * 0.5 + 0.5) * W, sy = (-v3.y * 0.5 + 0.5) * H;
-      if(v3.z > 1 || sx < 8 || sx > W - 8 || sy < 14 || sy > H - 14){ el.style.opacity = "0"; return; }
+      if(v3.z > 1 || sx < 8 || sx > W - 8 || sy < 14 || sy > H - 14){ el.style.opacity = "0"; return null; }
       if(!el.__w) el.__w = el.firstChild.offsetWidth + 14;
       var fitR = sx + el.__w <= W - 4, fitL = sx - el.__w >= 4;
       var side = prefer === "R" ? (fitR || !fitL ? "R" : "L") : (fitL || !fitR ? "L" : "R");
       if(el.__side !== side){ el.__side = side; el.classList.toggle("R", side === "R"); el.classList.toggle("L", side === "L"); }
       el.style.opacity = "1"; el.style.transform = "translate(" + sx.toFixed(1) + "px," + sy.toFixed(1) + "px)";
+      return { x0: side === "R" ? sx : sx - el.__w, x1: side === "R" ? sx + el.__w : sx, sx: sx, sy: sy };
     }
     function update(dt){
       var st = app.state, tgt = st.depth / 100, rr = Math.min(1, st.rain / 50), i;
@@ -2060,8 +2232,13 @@ setTimeout(function(){
       camera.updateMatrixWorld();
 
       /* 画面上のラベル */
-      place(tagEl, 2.7, level, ZF, "R");
-      place(floorEl, car.position.x - 1.74, car.position.y + FLOOR, CAR_Z + 0.74, "L");
+      var pw = place(tagEl, 2.7, level, ZF, "R");
+      var pf = place(floorEl, car.position.x - 1.74, car.position.y + FLOOR, CAR_Z + 0.74, "L");
+      /* 幅の狭い画面で2つのラベルが重なるときは、水深のラベルを床面のラベルの上へずらす */
+      if(pw && pf && pw.x0 < pf.x1 + 4 && pf.x0 < pw.x1 + 4 && Math.abs(pw.sy - pf.sy) < TAG_H){
+        var ny = pf.sy - TAG_H; if(ny < 16) ny = pf.sy + TAG_H;
+        tagEl.style.transform = "translate(" + pw.sx.toFixed(1) + "px," + ny.toFixed(1) + "px)";
+      }
     }
     function frame(){
       raf = 0;
